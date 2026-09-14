@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "opa-mobile-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--clear", "--port", "8090"],
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set BROWSER=none&& npx expo start --web --clear --port 8090"],
       "port": 8090,
       "autoPort": false
     }
