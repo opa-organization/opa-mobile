@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar,
+  ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Modal,
 } from 'react-native'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
@@ -11,13 +11,14 @@ import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
-import { GARMENT_COLORS } from '../../constants/garmentColors'
+import { GARMENT_COLORS, GARMENT_COLOR_HEX } from '../../constants/garmentColors'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { useSizeGuidesForCategory } from '../../hooks/useSizeGuidesForCategory'
 import { uploadGarmentImage } from '../../lib/uploadImage'
 import { supabase } from '../../lib/supabase'
 import { api } from '../../lib/api'
+import { dedupeCaseInsensitive } from '../../lib/text'
 
 const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
 
@@ -60,6 +61,17 @@ export default function CreateGarmentScreen() {
   const [error, setError] = useState<string | null>(null)
 
   const { guides, loading: guidesLoading } = useSizeGuidesForCategory(category, brand?.id)
+
+  // Opciones del selector de Estilo: valores reales que ya existen en `prendas.style`
+  // (no es un enum, sigue siendo texto libre) — mismo criterio que `outfitTags` en
+  // app/(tabs)/search.tsx. El selector igual ofrece "Otro" para poder introducir un
+  // estilo nuevo que todavía no use ninguna prenda.
+  const [styleOptions, setStyleOptions] = useState<string[]>([])
+  useEffect(() => {
+    supabase.from('prendas').select('style').not('style', 'is', null).then(({ data }) => {
+      setStyleOptions(dedupeCaseInsensitive((data ?? []).map((r) => r.style as string)))
+    })
+  }, [])
 
   // Precarga los datos de la prenda cuando se abre en modo edición (?id=...).
   // skipCategoryResetRef evita que el efecto de abajo (que borra talles/guía al
@@ -288,28 +300,30 @@ export default function CreateGarmentScreen() {
             </View>
           </Section>
 
-          {/* Color — paleta estandarizada (chips), reemplaza el texto libre de antes.
-              Toggle: tocar el color ya elegido lo deselecciona (color es opcional). */}
+          {/* Color — selector desplegable con la paleta estandarizada + "Otro" para
+              texto libre (color sigue siendo opcional). */}
           <Section title="COLOR">
-            <View style={styles.chipRow}>
-              {GARMENT_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => setColor(color === c ? '' : c)}
-                  style={[styles.chip, color === c && styles.chipSelected]}
-                >
-                  <Text style={[styles.chipText, color === c && styles.chipTextSelected]}>{c}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <DropdownField
+              title="Color"
+              value={color}
+              options={GARMENT_COLORS.map((c) => c.value)}
+              swatches={GARMENT_COLOR_HEX}
+              onChange={setColor}
+              placeholder="Elegí un color"
+            />
           </Section>
 
-          {/* Estilo */}
-          <View style={styles.card}>
-            <Field label="Estilo" last>
-              <TextInput style={styles.input} value={style} onChangeText={setStyle} placeholder="Ej. street, vintage, minimal" placeholderTextColor={colors.grisMedio} />
-            </Field>
-          </View>
+          {/* Estilo — mismo componente desplegable, sin swatches (no es un color).
+              Opciones dinámicas (valores reales de prendas.style) + "Otro". */}
+          <Section title="ESTILO">
+            <DropdownField
+              title="Estilo"
+              value={style}
+              options={styleOptions}
+              onChange={setStyle}
+              placeholder="Elegí un estilo"
+            />
+          </Section>
 
           {/* Talles + stock */}
           {category && (
@@ -437,6 +451,106 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   )
 }
 
+// Campo desplegable: toca para abrir una hoja (mismo patrón de Modal que ya usa
+// SizeGuideSheet en app/product/[id].tsx) con la lista de `options`; si `swatches`
+// viene, cada fila muestra un circulito con ese color. Siempre ofrece "Otro" al
+// final para texto libre — el valor elegido puede no estar en `options` (ej. venía
+// de "Otro" en una edición anterior), en ese caso se muestra sin swatch.
+function DropdownField({
+  title, value, options, swatches, onChange, placeholder = 'Elegí una opción',
+}: {
+  title: string
+  value: string
+  options: string[]
+  swatches?: Record<string, string>
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [otherMode, setOtherMode] = useState(false)
+  const [draft, setDraft] = useState('')
+  const isCustom = value !== '' && !options.includes(value)
+
+  function openPicker() {
+    setOtherMode(isCustom)
+    setDraft(isCustom ? value : '')
+    setOpen(true)
+  }
+
+  function selectOption(opt: string) {
+    onChange(value === opt ? '' : opt)
+    setOpen(false)
+  }
+
+  function confirmOther() {
+    onChange(draft.trim())
+    setOpen(false)
+  }
+
+  return (
+    <>
+      <TouchableOpacity style={styles.dropdownField} onPress={openPicker} activeOpacity={0.7}>
+        <View style={styles.dropdownFieldValue}>
+          {swatches && value !== '' && (
+            <View style={[styles.colorSwatch, { backgroundColor: isCustom ? colors.grisBorde : swatches[value] }]} />
+          )}
+          <Text style={[styles.dropdownFieldText, !value && styles.dropdownFieldPlaceholder]} numberOfLines={1}>
+            {value || placeholder}
+          </Text>
+        </View>
+        <Text style={styles.dropdownChevron}>⌄</Text>
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={styles.sheetOverlay} onPress={() => setOpen(false)} activeOpacity={1} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={() => setOpen(false)}>
+              <Text style={styles.sheetClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {otherMode ? (
+            <View style={styles.otherBox}>
+              <TextInput
+                style={styles.otherInput}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={`Escribí tu propio ${title.toLowerCase()}`}
+                placeholderTextColor={colors.grisMedio}
+                autoFocus
+              />
+              <View style={styles.otherActions}>
+                <TouchableOpacity onPress={() => setOtherMode(false)}>
+                  <Text style={styles.otherBack}>‹ Volver a la lista</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.otherConfirm} onPress={confirmOther}>
+                  <Text style={styles.otherConfirmText}>Listo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <ScrollView style={styles.dropdownList}>
+              {options.map((opt) => (
+                <TouchableOpacity key={opt} style={styles.dropdownRow} onPress={() => selectOption(opt)}>
+                  {swatches && <View style={[styles.colorSwatch, { backgroundColor: swatches[opt] }]} />}
+                  <Text style={styles.dropdownRowText}>{opt}</Text>
+                  {value === opt && <Text style={styles.dropdownRowCheck}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.dropdownRow} onPress={() => setOtherMode(true)}>
+                <Text style={[styles.dropdownRowText, styles.dropdownRowOther]}>+ Otro</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+    </>
+  )
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.blanco },
 
@@ -508,4 +622,47 @@ const styles = StyleSheet.create({
   submitBtn: { backgroundColor: colors.rosaOpa, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center' },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: 15, fontWeight: '700', color: colors.blanco },
+
+  // DropdownField (Color/Estilo) — el "campo" en el form que abre la hoja
+  dropdownField: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.grisBorde, borderRadius: radius.chip,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+  },
+  dropdownFieldValue: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+  dropdownFieldText: { fontSize: 15, color: colors.negro },
+  dropdownFieldPlaceholder: { color: colors.grisClaro },
+  dropdownChevron: { fontSize: 16, color: colors.grisClaro },
+  colorSwatch: { width: 16, height: 16, borderRadius: 999, borderWidth: 1, borderColor: colors.grisMedio },
+
+  // Hoja (Modal) — mismo patrón que SizeGuideSheet en app/product/[id].tsx
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '75%',
+    backgroundColor: colors.blanco, borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card,
+    paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, paddingTop: spacing.sm,
+  },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.grisMedio, alignSelf: 'center', marginBottom: spacing.md },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: colors.negro, fontFamily: fonts.mergeOne },
+  sheetClose: { fontSize: 16, color: colors.grisClaro, padding: 4 },
+
+  dropdownList: { maxHeight: 400 },
+  dropdownRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.grisBorde,
+  },
+  dropdownRowText: { flex: 1, fontSize: 15, color: colors.negro },
+  dropdownRowCheck: { fontSize: 15, color: colors.rosaOpa, fontWeight: '700' },
+  dropdownRowOther: { color: colors.rosaOpa, fontWeight: '600' },
+
+  otherBox: { paddingTop: spacing.sm },
+  otherInput: {
+    fontSize: 15, color: colors.negro, backgroundColor: colors.grisBorde,
+    borderRadius: radius.chip, paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+  },
+  otherActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
+  otherBack: { fontSize: 13, color: colors.grisOscuro },
+  otherConfirm: { backgroundColor: colors.rosaOpa, borderRadius: radius.chip, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  otherConfirmText: { fontSize: 13, fontWeight: '700', color: colors.blanco },
 })

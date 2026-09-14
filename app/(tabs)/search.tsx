@@ -19,6 +19,7 @@ import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
 import { GARMENT_COLORS } from '../../constants/garmentColors'
+import { dedupeCaseInsensitive } from '../../lib/text'
 import { Outfit, Garment, Brand, Profile } from '../../types'
 
 const ASSETS_BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
@@ -50,21 +51,6 @@ const CATEGORY_TAGS = [
   { key: 'calzado', label: 'Calzado' },
   { key: 'extras', label: 'Extras' },
 ]
-
-// color/style de `prendas` son texto libre (no un enum) con mayúsculas inconsistentes
-// en los datos reales (ej. "Azul" vs "azul") — se traen los valores reales que existen
-// hoy (mismo criterio que outfitTags más abajo) y se deduplican ignorando mayúsculas,
-// quedándose con la primera variante de casing que aparece para mostrar en el chip.
-function dedupeCaseInsensitive(values: string[]): string[] {
-  const seen = new Map<string, string>()
-  for (const raw of values) {
-    const v = raw?.trim()
-    if (!v) continue
-    const key = v.toLowerCase()
-    if (!seen.has(key)) seen.set(key, v)
-  }
-  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'))
-}
 
 type OutfitSort = 'popular' | 'recientes'
 type PrendaSort = 'recientes' | 'precio_asc' | 'precio_desc'
@@ -390,11 +376,12 @@ export default function SearchScreen() {
           <View style={styles.chipsWrap}>
             {GARMENT_COLORS.map((c) => (
               <TouchableOpacity
-                key={c}
-                style={[styles.filterChip, colorFilters.includes(c) && styles.filterChipActive]}
-                onPress={() => toggleColorFilter(c)}
+                key={c.value}
+                style={[styles.filterChip, styles.colorChip, colorFilters.includes(c.value) && styles.filterChipActive]}
+                onPress={() => toggleColorFilter(c.value)}
               >
-                <Text style={[styles.filterChipText, colorFilters.includes(c) && styles.filterChipTextActive]}>{c}</Text>
+                <View style={[styles.colorSwatch, { backgroundColor: c.hex }]} />
+                <Text style={[styles.filterChipText, colorFilters.includes(c.value) && styles.filterChipTextActive]}>{c.value}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -665,6 +652,8 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: colors.rosaOpa, borderColor: colors.rosaOpa },
   filterChipText: { fontSize: 12, color: colors.grisOscuro, textTransform: 'capitalize' },
   filterChipTextActive: { color: colors.blanco, fontWeight: '600' },
+  colorChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  colorSwatch: { width: 12, height: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.bordeTag },
 
   brandList: { padding: spacing.lg, gap: spacing.md },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
