@@ -79,6 +79,11 @@ export default function SearchScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [colorFilters, setColorFilters] = useState<string[]>([])
   const [styleFilters, setStyleFilters] = useState<string[]>([])
+  // Color/Estilo van colapsados por default dentro del panel de filtros — a pedido
+  // del usuario, no quiere ver los 16 colores + todos los estilos apenas abre
+  // "Filtros". Se expanden recién al tocar su propio header.
+  const [colorSectionOpen, setColorSectionOpen] = useState(false)
+  const [styleSectionOpen, setStyleSectionOpen] = useState(false)
   const [outfits, setOutfits] = useState<Outfit[]>([])
   const [garments, setGarments] = useState<(Garment & { brand?: Brand })[]>([])
   const [accounts, setAccounts] = useState<AccountResult[]>([])
@@ -278,6 +283,8 @@ export default function SearchScreen() {
                 setFiltersOpen(false)
                 setColorFilters([])
                 setStyleFilters([])
+                setColorSectionOpen(false)
+                setStyleSectionOpen(false)
               }
             }}
           >
@@ -372,34 +379,54 @@ export default function SearchScreen() {
             ))}
           </View>
 
-          <Text style={styles.filterSectionLabel}>Color</Text>
-          <View style={styles.chipsWrap}>
-            {GARMENT_COLORS.map((c) => (
-              <TouchableOpacity
-                key={c.value}
-                style={[styles.filterChip, styles.colorChip, colorFilters.includes(c.value) && styles.filterChipActive]}
-                onPress={() => toggleColorFilter(c.value)}
-              >
-                <View style={[styles.colorSwatch, { backgroundColor: c.hex }]} />
-                <Text style={[styles.filterChipText, colorFilters.includes(c.value) && styles.filterChipTextActive]}>{c.value}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={styles.collapsibleHeader}
+            onPress={() => setColorSectionOpen((o) => !o)}
+          >
+            <Text style={[styles.filterSectionLabel, styles.collapsibleLabel]}>
+              Color{colorFilters.length > 0 ? ` (${colorFilters.length})` : ''}
+            </Text>
+            <Text style={styles.collapsibleChevron}>{colorSectionOpen ? '⌃' : '⌄'}</Text>
+          </TouchableOpacity>
+          {colorSectionOpen && (
+            <View style={styles.chipsWrap}>
+              {GARMENT_COLORS.map((c) => (
+                <TouchableOpacity
+                  key={c.value}
+                  style={[styles.filterChip, styles.colorChip, colorFilters.includes(c.value) && styles.filterChipActive]}
+                  onPress={() => toggleColorFilter(c.value)}
+                >
+                  <View style={[styles.colorSwatch, { backgroundColor: c.hex }]} />
+                  <Text style={[styles.filterChipText, colorFilters.includes(c.value) && styles.filterChipTextActive]}>{c.value}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {garmentStyles.length > 0 && (
             <>
-              <Text style={styles.filterSectionLabel}>Estilo</Text>
-              <View style={styles.chipsWrap}>
-                {garmentStyles.map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.filterChip, styleFilters.includes(s) && styles.filterChipActive]}
-                    onPress={() => toggleStyleFilter(s)}
-                  >
-                    <Text style={[styles.filterChipText, styleFilters.includes(s) && styles.filterChipTextActive]}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setStyleSectionOpen((o) => !o)}
+              >
+                <Text style={[styles.filterSectionLabel, styles.collapsibleLabel]}>
+                  Estilo{styleFilters.length > 0 ? ` (${styleFilters.length})` : ''}
+                </Text>
+                <Text style={styles.collapsibleChevron}>{styleSectionOpen ? '⌃' : '⌄'}</Text>
+              </TouchableOpacity>
+              {styleSectionOpen && (
+                <View style={styles.chipsWrap}>
+                  {garmentStyles.map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.filterChip, styleFilters.includes(s) && styles.filterChipActive]}
+                      onPress={() => toggleStyleFilter(s)}
+                    >
+                      <Text style={[styles.filterChipText, styleFilters.includes(s) && styles.filterChipTextActive]}>{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </>
           )}
         </View>
@@ -640,6 +667,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingVertical: 2,
+  },
+  collapsibleChevron: { fontSize: 13, color: colors.grisClaro },
+  collapsibleLabel: { marginTop: 0, marginBottom: 0 },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   filterChip: {
     paddingHorizontal: spacing.sm,
