@@ -48,6 +48,7 @@ _Última actualización: 2026-09-07_
 | 20260907130554 | public_read_garment_questions |
 | 20260914115005 | standardize_prendas_color_palette |
 | 20260914124906 | relax_prendas_color_check_allow_custom |
+| 20260914132038 | create_notificaciones_system |
 
 > **`admin_impersonation_log` (2026-08-03) — ya identificada (2026-08-03), no es un misterio.** Tabla de auditoría (`id`, `admin_profile_id`, `brand_id`, `brand_profile_id`, `created_at`) del feature "login como marca sin password" de `opa-admin` (ver nota completa en `CLAUDE.md` → "Login como marca sin password"). RLS habilitado sin policies públicas — solo accesible vía `service_role`, por diseño (es un log de auditoría, no algo que la app deba leer).
 
@@ -399,6 +400,42 @@ Q&A entre un usuario y una marca — sobre una prenda puntual (`garment_id`) o l
 - UPDATE: solo el dueño de la marca destinataria, y solo para responder (`answer`/`answered_at`) — la policy no restringe columnas, así que técnicamente podría reescribir `question` también; no hay UI que lo haga.
 
 Va todo directo a Supabase (sin pasar por la API Hono) — mismo patrón que el toggle de `descontinuada` en `prendas`. Detalle completo del feature en `product-2026-06-10-brand-system.md` y `frontend-2026-06-06-screens-and-components.md`.
+
+---
+
+### `notificaciones` (2026-09-14)
+Centro de notificaciones — a pedido explícito del usuario ("un usuario te empezó a seguir, agregó tu outfit a favoritos, le dio like a algo... y dependiendo de si sos comprador o vendedor, te hicieron una pregunta o tu pregunta fue respondida"). Tabla nueva, no existía ningún mecanismo de notificación antes de esto.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| id | uuid (PK) | default gen_random_uuid() |
+| recipient_id | uuid | FK → perfiles.id ON DELETE CASCADE — a quién le llega |
+| actor_id | uuid | FK → perfiles.id ON DELETE SET NULL, nullable — quién generó el evento (null en algunos casos, ej. si la marca del `question_answered` no tiene `profile_id`) |
+| type | text | CHECK IN ('follow', 'like', 'save', 'question_asked', 'question_answered') |
+| outfit_id | uuid | FK → outfits.id ON DELETE CASCADE, nullable — solo `like`/`save` |
+| garment_id | uuid | FK → prendas.id ON DELETE CASCADE, nullable — solo `question_asked`/`question_answered` |
+| pregunta_id | uuid | FK → preguntas.id ON DELETE CASCADE, nullable — solo `question_asked`/`question_answered`; borrar la pregunta borra estas notificaciones en cascada |
+| read | boolean | NOT NULL, default false |
+| created_at | timestamptz | default now() |
+
+Índice: `(recipient_id, created_at desc)`.
+
+**Alimentada 100% por triggers, no por el cliente** — mismo criterio que los triggers de contadores ya existentes (`likes_count`/`saves_count`/`followers_count`), para que la notificación se genere sin importar el camino de escritura y sin que cada pantalla tenga que acordarse de insertarla a mano después de cada acción:
+- `notify_on_follow` (AFTER INSERT ON `follows`) → notifica a `following_id`, tipo `follow`.
+- `notify_on_outfit_like` (AFTER INSERT ON `outfit_likes`) → resuelve `outfits.creator_id` y notifica, tipo `like`.
+- `notify_on_outfit_save` (AFTER INSERT ON `outfits_guardados`) → igual que arriba, tipo `save`.
+- `notify_on_question_asked` (AFTER INSERT ON `preguntas`) → resuelve `marcas.profile_id` a partir de `brand_id` y notifica a la marca, tipo `question_asked`.
+- `notify_on_question_answered` (AFTER UPDATE ON `preguntas`, solo cuando `answer` pasa de null a no-null) → notifica a `preguntas.user_id` (quien preguntó), tipo `question_answered`, con `actor_id` = el `profile_id` de la marca que respondió.
+
+Las 5 funciones son `SECURITY DEFINER` (mismo patrón que `get_trending_garments`) — corren como el dueño de la función y bypassean RLS, porque `notificaciones` **no tiene policy de INSERT para usuarios normales** (solo se escribe vía trigger). Ningún caso se auto-notifica (ej. dar like a tu propio outfit no genera notificación — chequeado con `IS DISTINCT FROM` antes de insertar).
+
+**RLS:** habilitado. `notificaciones_select_own` (SELECT, `recipient_id = auth.uid()`) y `notificaciones_update_own` (UPDATE, mismo criterio en USING/WITH CHECK) — el cliente solo puede marcar sus propias notificaciones como leídas, nunca escribir el resto de la fila ni ver las de otro usuario. Sin policy de DELETE (no hay UI para borrar notificaciones individuales).
+
+**Realtime habilitado** (agregada a la publicación `supabase_realtime`, mismo patrón que `enable_realtime_on_outfits`) — `hooks/useNotifications.ts` se suscribe a `postgres_changes` filtrado por `recipient_id` para que la campanita y la lista se actualicen en vivo.
+
+**No hay borrado de notificaciones cuando se deshace la acción que las generó** (unfollow, unlike, unsave) — quedan como registro histórico, igual que la mayoría de apps grandes. Si en algún momento se decide que no tiene sentido (ej. "X te dejó de seguir" nunca debería quedar la notificación de que te siguió), haría falta agregar triggers `AFTER DELETE` simétricos — no se armaron porque no se pidió y agrega superficie sin necesidad clara.
+
+Detalle completo del feature (UI, hook, pantalla) en `frontend-2026-06-06-screens-and-components.md`.
 
 ---
 

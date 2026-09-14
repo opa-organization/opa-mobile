@@ -16,6 +16,7 @@ import { useBrandMetrics } from '../../hooks/useBrandMetrics'
 import { useTrendingGarments } from '../../hooks/useTrendingGarments'
 import { useBrandQuestions } from '../../hooks/useBrandQuestions'
 import { useBrandReviews } from '../../hooks/useBrandReviews'
+import { useNotifications } from '../../hooks/useNotifications'
 import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { SectionHeader } from '../../components/home/SectionHeader'
@@ -92,6 +93,24 @@ export default function HomeScreen() {
   return profile?.is_brand ? <BrandHomeView /> : <ConsumerHomeView />
 }
 
+// Campanita de notificaciones — común a las dos vistas de Home (usuario y
+// marca), arriba a la derecha. `campana_negra`/`campana_rosa` (subidos por el
+// usuario) en vez de un badge numérico: rosa cuando hay algo sin leer.
+function NotificationBell() {
+  const router = useRouter()
+  const session = useAuthStore((s) => s.session)
+  const { unreadCount } = useNotifications(session?.user.id)
+  return (
+    <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notifications')} hitSlop={8}>
+      <Image
+        source={{ uri: `${STORAGE}/${unreadCount > 0 ? 'campana_rosa' : 'campana_negra'}.png` }}
+        style={styles.bellIcon}
+        contentFit="contain"
+      />
+    </TouchableOpacity>
+  )
+}
+
 function ConsumerHomeView() {
   const router = useRouter()
   const { outfits, loading } = useOutfits()
@@ -118,13 +137,16 @@ function ConsumerHomeView() {
             style={styles.logoImg}
             contentFit="contain"
           />
-          <TouchableOpacity style={styles.truckBtn}>
-            <Image
-              source={{ uri: `${STORAGE}/camion_blanco.png` }}
-              style={styles.truckIcon}
-              contentFit="contain"
-            />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <NotificationBell />
+            <TouchableOpacity style={styles.truckBtn}>
+              <Image
+                source={{ uri: `${STORAGE}/camion_blanco.png` }}
+                style={styles.truckIcon}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -249,12 +271,15 @@ function BrandHomeView() {
             style={styles.logoImg}
             contentFit="contain"
           />
-          <View style={styles.brandAvatarWrap}>
-            {brand.logo_url ? (
-              <Image source={{ uri: brand.logo_url }} style={styles.brandAvatar} contentFit="cover" />
-            ) : (
-              <Text style={styles.brandAvatarInitial}>{brand.name[0]?.toUpperCase() ?? '?'}</Text>
-            )}
+          <View style={styles.headerRight}>
+            <NotificationBell />
+            <View style={styles.brandAvatarWrap}>
+              {brand.logo_url ? (
+                <Image source={{ uri: brand.logo_url }} style={styles.brandAvatar} contentFit="cover" />
+              ) : (
+                <Text style={styles.brandAvatarInitial}>{brand.name[0]?.toUpperCase() ?? '?'}</Text>
+              )}
+            </View>
           </View>
         </View>
         <View style={styles.greeting}>
@@ -460,6 +485,9 @@ const styles = StyleSheet.create({
   },
   truckBtn: { padding: 4 },
   truckIcon: { width: 32, height: 32 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  bellBtn: { padding: 4 },
+  bellIcon: { width: 24, height: 24 },
 
   // Outfit carousel
   outfitCard: {

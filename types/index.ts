@@ -156,6 +156,26 @@ export interface Question {
   garment?: { name: string } | null
 }
 
+// notificaciones — alimentada por triggers de DB (follow/like/save/preguntas),
+// no por el cliente. `actor_id` es quien generó el evento (nullable: no aplica
+// a `question_answered`, ahí lo relevante es la marca vía `garment`/`pregunta`).
+export type NotificationType = 'follow' | 'like' | 'save' | 'question_asked' | 'question_answered'
+
+export interface AppNotification {
+  id: string
+  recipient_id: string
+  actor_id: string | null
+  type: NotificationType
+  outfit_id: string | null
+  garment_id: string | null
+  pregunta_id: string | null
+  read: boolean
+  created_at: string
+  actor?: { id: string; username: string; display_name: string | null; avatar_url: string | null; is_brand: boolean } | null
+  outfit?: { id: string; title: string | null; cover_image_url: string | null } | null
+  garment?: { id: string; name: string; brand_id: string } | null
+}
+
 // ─── Size guide system ────────────────────────────────────────────────────────
 
 export interface SizeGuide {

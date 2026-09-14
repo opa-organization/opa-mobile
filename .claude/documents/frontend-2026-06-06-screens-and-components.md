@@ -53,8 +53,10 @@ app/
 ### Home (`app/(tabs)/index.tsx`)
 **Rama por tipo de cuenta (2026-09-07):** `HomeScreen()` lee `profile.is_brand` y renderiza `<BrandHomeView />` o `<ConsumerHomeView />` — mismo criterio que ya usa `app/(tabs)/wardrobe.tsx` para armario vs. catálogo. `ConsumerHomeView` es exactamente el Home que ya existía (sin cambios), documentado abajo. `BrandHomeView` es una pantalla completamente distinta, ver sección propia más abajo.
 
+**Campanita de notificaciones (2026-09-14):** componente `NotificationBell` (mismo archivo, compartido por las dos vistas) en el header, a la derecha — en `ConsumerHomeView` al lado del camión, en `BrandHomeView` al lado del avatar de la marca. Usa `campana_negra.png`/`campana_rosa.png` (subidos por el usuario a la raíz del bucket, confirmados por HEAD request antes de usarlos): rosa cuando `useNotifications(session?.user.id).unreadCount > 0`, negra si no — mismo criterio de "el ícono cambia de color según el estado" que ya usan `filtro_negro`/`filtro_rosa` en `search.tsx` y `catalogo`/`catalogo_rosa` en la navbar, en vez de un badge numérico. Tocarla navega a `app/notifications.tsx`. Ver detalle completo del sistema (tabla, triggers, hook) en `database-2026-06-06-schema-and-seed.md` y `backend-2026-06-06-supabase-integration.md`.
+
 #### `ConsumerHomeView` (usuarios normales)
-- Header: transparent OPA logo (left) + white truck icon (right)
+- Header: transparent OPA logo (left) + campanita + white truck icon (right)
 - **Outfit Carousel** with depth effect:
   - `Animated.FlatList` horizontal, `snapToInterval`
   - `scrollX` interpolated → `scale` (0.84→1→0.84) and `opacity` (0.65→1→0.65)
@@ -66,7 +68,7 @@ app/
 - Connected to real data via `useOutfits()`
 
 #### `BrandHomeView` (cuentas de marca, nuevo 2026-09-07)
-A pedido explícito del usuario: "que no tengan la misma experiencia" — deliberadamente no es un feed de descubrimiento, es un panel de gestión de la cuenta. Header: logo OPA + avatar circular de la marca (logo_url o inicial), saludo "Hola, {marca}". Secciones, en este orden:
+A pedido explícito del usuario: "que no tengan la misma experiencia" — deliberadamente no es un feed de descubrimiento, es un panel de gestión de la cuenta. Header: logo OPA + campanita de notificaciones + avatar circular de la marca (logo_url o inicial), saludo "Hola, {marca}". Secciones, en este orden:
 1. **Tráfico de tu cuenta** — carrusel horizontal de 3 tarjetas KPI (Me gusta, Guardados, Seguidores), todo dato real (`useBrandMetrics`). Visitas y Clics a tienda quedaron **afuera a propósito**: no hay tracking de eso en la DB (`GET /api/brands/me/metrics` ya lo aclara en su `note`) y no se iban a inventar números en la app real — a diferencia del mockup de diseño previo a esta implementación, que sí los mostraba como placeholder.
 2. **Preguntas sin responder** — título + badge de conteo real (`totalCount` de `useBrandQuestions`) + flecha "→" (mismo glifo que ya usa `SectionHeader`) que navega a `app/brand/questions.tsx`; la flecha y el badge se ocultan si no hay ninguna pendiente. Muestra las primeras 3 (`useBrandQuestions(brandId, {limit:3})`) en cards con avatar (iniciales), texto de la pregunta (2 líneas), "Sobre: {prenda}" o "Sobre: Perfil de la marca", y una pill "Responder" — tocar cualquier parte de la card o la flecha del header lleva a `app/brand/questions.tsx` (no hay un flujo de responder embebido en el Home mismo, a propósito, para no duplicar esa UI).
 3. **Tus outfits publicados** — `SectionHeader` con flecha "→" a `/(tabs)/wardrobe` (tab Catálogo → sub-tab Outfits, ya existente). Carrusel horizontal (140×210, mismo placeholder gris que usa el resto de la app cuando no hay foto) de los outfits reales de la marca (`useBrand(brandId).outfits`), con contador de likes superpuesto. **No incluye un botón "+ Nuevo outfit"** — se decidió no construirlo: no existe ninguna pantalla de creación de outfit para marcas todavía en `opa-mobile` (se investigó, no hay precedente), así que hubiera sido un botón sin acción real; ver pendiente en `meta-2026-06-10-pending-features.md`.
@@ -81,6 +83,24 @@ Verificado de punta a punta en browser real logueado como `capas@opa.com`: Tráf
 Destino del "→" de la sección "Preguntas sin responder" del Home de marca. Header con flecha `flecha.png` + título centrado (mismo patrón que `app/brand/create-garment.tsx`, no el de `settings.tsx`). Lista completa (sin límite) de `useBrandQuestions(brandId)`. Responder es **inline, sin pantalla ni modal aparte**: tocar "Responder" en una card expande un `TextInput` + botones Cancelar/Enviar respuesta dentro de la misma card (estado local `openId`); al confirmar, `answer(questionId, texto)` hace el UPDATE y la pregunta desaparece de la lista (tanto acá como, al volver, del Home). Verificado de punta a punta con una cuenta de prueba descartable: preguntar como usuario → responder como Capas → fila confirmada en la DB con `answer`/`answered_at` seteados.
 
 **Preguntar, del lado del usuario — reworkeado a Q&A público estilo Mercado Libre (2026-09-07, misma sesión que lo creó):** la versión original tenía 2 puntos de entrada (una prenda puntual, o la marca en general desde `app/marca/[id].tsx`) y las preguntas solo las podía leer quien preguntó o la marca. El usuario pidió el modelo Mercado Libre en su lugar: **se sacó el botón "Preguntar" de `app/marca/[id].tsx`** (ya no hay forma de preguntarle algo general a una marca, solo sobre una prenda puntual) y **la sección de `app/product/[id].tsx` pasó a ser pública** — ver "Preguntas y respuestas" en la sección Product Detail más abajo. Esto además cierra solo, sin pantalla nueva, el pendiente de "el usuario que pregunta no ve la respuesta": ahora la ve en la misma publicación, junto con las de cualquier otro usuario.
+
+### Notifications (`app/notifications.tsx`, nuevo 2026-09-14)
+Centro de notificaciones — a pedido explícito del usuario, destino de la campanita del Home. Pantalla standalone (sin bottom nav, mismo patrón que `app/user-outfits.tsx`/`app/brand/questions.tsx`): header con flecha `flecha.png` + título "Notificaciones" + "Marcar todas" (texto rosa, arriba a la derecha, solo visible si hay alguna sin leer). Lista (`useNotifications`) con una fila por notificación: avatar del `actor` (o iniciales si no tiene foto) + mensaje generado por tipo (`messageFor()`) + `timeAgo`; sin leer = fondo rosa clarito (`colors.rosaOpaLight`) + punto rosa a la derecha.
+
+**Los 5 tipos y su mensaje/destino al tocar:**
+| Tipo | Mensaje | Navega a | Recipient típico |
+|---|---|---|---|
+| `follow` | "{actor} empezó a seguirte" | perfil del actor (`/user/[id]` o `/marca/[id]` si el actor es una marca — resuelto en el momento con una query a `marcas` por `profile_id`, caso raro hoy) | cualquiera |
+| `like` | "{actor} le dio like a {outfit}" | `/outfit/[outfit_id]` | creador del outfit |
+| `save` | "{actor} guardó {outfit}" | `/outfit/[outfit_id]` | creador del outfit |
+| `question_asked` | "{actor} te hizo una pregunta sobre {prenda}" | `/brand/questions` (responder ahí, no hay control inline acá) | marca dueña de la prenda |
+| `question_answered` | "{actor} respondió tu pregunta sobre {prenda}" | `/product/[garment_id]` (ahí está la respuesta pública, ver Product Detail) | quien preguntó |
+
+Tocar cualquier fila la marca como leída (`markAsRead`, antes de navegar) — no hace falta abrir la pantalla para que cuente como "vista", alcanza con tocarla. `markAllAsRead` resetea todas de una. El hook tiene suscripción realtime, así que la campanita en Home cambia de color sola sin volver a esa pantalla.
+
+Verificado de punta a punta en browser real, generando notificaciones reales entre 2 cuentas (una de prueba descartable + `capas@opa.com`): seguir a Capas → notificación `follow` real para Capas; preguntar sobre "Trench Camel" → notificación `question_asked` para Capas, tocarla navega a `/brand/questions` y la marca como leída (confirmado en la DB); dar like + guardar un outfit de `mateo.h` → notificaciones `like`/`save` reales para `mateo.h` (confirmadas en la DB, no verificadas visualmente en su cuenta real para no tocarla más de lo necesario); Capas responde la pregunta → notificación `question_answered` para la cuenta de prueba, campanita pasa a rosa, tocarla navega al producto y la campanita vuelve a negro sin recargar. Cuenta de prueba, la pregunta de prueba, y las 5 notificaciones generadas — todo borrado al terminar (los contadores de Capas y `mateo.h`/el outfit volvieron a su valor original, confirmado). `tsc` limpio.
+
+**Bug real encontrado y arreglado durante la implementación** (no durante el test funcional — apareció en el primer intento de signup con la cuenta de prueba): ver la nota completa en `backend-2026-06-06-supabase-integration.md` → `useNotifications.ts`.
 
 ### Outfit Scroll (`app/(tabs)/outfits.tsx`)
 - Full-screen `FlatList` with `pagingEnabled` — vertical TikTok-style scroll. En web, `snapToInterval` es un no-op (react-native-web 0.21.2); el snap real lo da `pagingEnabled`. El `FlatList` fuerza `style={{ height: pageH }}` (viewport == alto de cada item) para que el snap no quede desalineado.
