@@ -18,6 +18,7 @@ import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
+import { GARMENT_COLORS } from '../../constants/garmentColors'
 import { Outfit, Garment, Brand, Profile } from '../../types'
 
 const ASSETS_BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
@@ -119,20 +120,23 @@ export default function SearchScreen() {
     loadOutfitTags()
   }, [])
 
-  // Mismo patrón que outfitTags: opciones de Color/Estilo del panel de filtros
-  // avanzados se arman con valores reales de `prendas`, no con una lista inventada.
-  const [garmentColors, setGarmentColors] = useState<string[]>([])
+  // Color: paleta estandarizada fija (GARMENT_COLORS, mismo set que el CHECK
+  // constraint de la DB y los chips de create-garment.tsx) — a diferencia de
+  // outfitTags, acá SÍ se muestran las 17 opciones siempre, tenga o no alguna
+  // prenda ya cargada con ese color (a pedido explícito del usuario: "aunque no
+  // haya ninguna prenda con este color, que aparezcan como opción").
+  // Estilo sigue siendo texto libre en la DB, así que sigue trayendo valores reales.
   const [garmentStyles, setGarmentStyles] = useState<string[]>([])
   useEffect(() => {
-    async function loadGarmentFilterOptions() {
-      const [{ data: colorsData }, { data: stylesData }] = await Promise.all([
-        supabase.from('prendas').select('color').eq('descontinuada', false).not('color', 'is', null),
-        supabase.from('prendas').select('style').eq('descontinuada', false).not('style', 'is', null),
-      ])
-      setGarmentColors(dedupeCaseInsensitive((colorsData ?? []).map((r) => r.color as string)))
+    async function loadGarmentStyleOptions() {
+      const { data: stylesData } = await supabase
+        .from('prendas')
+        .select('style')
+        .eq('descontinuada', false)
+        .not('style', 'is', null)
       setGarmentStyles(dedupeCaseInsensitive((stylesData ?? []).map((r) => r.style as string)))
     }
-    loadGarmentFilterOptions()
+    loadGarmentStyleOptions()
   }, [])
 
   function toggleColorFilter(value: string) {
@@ -382,22 +386,18 @@ export default function SearchScreen() {
             ))}
           </View>
 
-          {garmentColors.length > 0 && (
-            <>
-              <Text style={styles.filterSectionLabel}>Color</Text>
-              <View style={styles.chipsWrap}>
-                {garmentColors.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.filterChip, colorFilters.includes(c) && styles.filterChipActive]}
-                    onPress={() => toggleColorFilter(c)}
-                  >
-                    <Text style={[styles.filterChipText, colorFilters.includes(c) && styles.filterChipTextActive]}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
+          <Text style={styles.filterSectionLabel}>Color</Text>
+          <View style={styles.chipsWrap}>
+            {GARMENT_COLORS.map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={[styles.filterChip, colorFilters.includes(c) && styles.filterChipActive]}
+                onPress={() => toggleColorFilter(c)}
+              >
+                <Text style={[styles.filterChipText, colorFilters.includes(c) && styles.filterChipTextActive]}>{c}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {garmentStyles.length > 0 && (
             <>
