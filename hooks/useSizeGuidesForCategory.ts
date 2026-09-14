@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useSupabaseQuery } from './useSupabaseQuery'
 import { supabase } from '../lib/supabase'
 import { SizeGuide } from '../types'
 
@@ -14,20 +14,18 @@ function toGuideCategory(category: string): string {
 // Guías disponibles para una categoría de prenda: las 10 default de OPA
 // (brand_id null) + las propias de la marca si tuviera alguna creada.
 export function useSizeGuidesForCategory(category: string | null, brandId?: string | null) {
-  const [guides, setGuides] = useState<SizeGuide[]>([])
-  const [loading, setLoading] = useState(false)
+  const { data, loading, error, refetch } = useSupabaseQuery<SizeGuide[]>(
+    'useSizeGuidesForCategory',
+    async () => {
+      if (!category) return { data: [], error: null }
+      const guideCategory = toGuideCategory(category)
+      let query = supabase.from('size_guides').select('*').eq('category', guideCategory)
+      query = brandId ? query.or(`brand_id.is.null,brand_id.eq.${brandId}`) : query.is('brand_id', null)
+      const { data, error } = await query.order('name')
+      return { data: (data ?? []) as SizeGuide[], error }
+    },
+    [category, brandId],
+  )
 
-  useEffect(() => {
-    if (!category) { setGuides([]); return }
-    setLoading(true)
-    const guideCategory = toGuideCategory(category)
-    let query = supabase.from('size_guides').select('*').eq('category', guideCategory)
-    query = brandId ? query.or(`brand_id.is.null,brand_id.eq.${brandId}`) : query.is('brand_id', null)
-    query.order('name').then(({ data }) => {
-      setGuides((data ?? []) as SizeGuide[])
-      setLoading(false)
-    })
-  }, [category, brandId])
-
-  return { guides, loading }
+  return { guides: data ?? [], loading, error, refetch }
 }

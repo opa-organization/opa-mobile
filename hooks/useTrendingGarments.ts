@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useSupabaseQuery } from './useSupabaseQuery'
 import { supabase } from '../lib/supabase'
 import { Garment } from '../types'
 
@@ -13,23 +13,16 @@ export interface TrendingGarment extends Garment {
 // servidor con privilegios elevados (la función nunca expone filas crudas ni
 // user_id, solo el count).
 export function useTrendingGarments(brandId?: string | null, days = 7, limit = 8) {
-  const [garments, setGarments] = useState<TrendingGarment[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, error, refetch } = useSupabaseQuery<TrendingGarment[]>(
+    'useTrendingGarments',
+    async () => {
+      if (!brandId) return { data: [], error: null }
+      const { data, error } = await supabase
+        .rpc('get_trending_garments', { p_brand_id: brandId, p_days: days, p_limit: limit })
+      return { data: (data as TrendingGarment[]) ?? [], error }
+    },
+    [brandId, days, limit],
+  )
 
-  useEffect(() => {
-    if (!brandId) { setGarments([]); setLoading(false); return }
-    let cancelled = false
-    setLoading(true)
-    supabase
-      .rpc('get_trending_garments', { p_brand_id: brandId, p_days: days, p_limit: limit })
-      .then(({ data }) => {
-        if (!cancelled) {
-          setGarments((data as TrendingGarment[]) ?? [])
-          setLoading(false)
-        }
-      })
-    return () => { cancelled = true }
-  }, [brandId, days, limit])
-
-  return { garments, loading }
+  return { garments: data ?? [], loading, error, refetch }
 }

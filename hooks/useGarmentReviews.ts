@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useSupabaseQuery } from './useSupabaseQuery'
 import { supabase } from '../lib/supabase'
 
 export interface GarmentReview {
@@ -13,26 +13,24 @@ export interface GarmentReview {
 // o sea compra verificada, y todavía no hay flujo de compra) — el hook queda
 // listo para cuando existan filas reales; el caller maneja el estado vacío.
 export function useGarmentReviews(garmentId?: string) {
-  const [reviews, setReviews] = useState<GarmentReview[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, error, refetch } = useSupabaseQuery<GarmentReview[]>(
+    'useGarmentReviews',
+    async () => {
+      if (!garmentId) return { data: [], error: null }
+      const { data, error } = await supabase
+        .from('reseñas')
+        .select('id, rating, comment, created_at, user:perfiles(username, avatar_url)')
+        .eq('garment_id', garmentId)
+        .order('created_at', { ascending: false })
+      return { data: (data ?? []) as unknown as GarmentReview[], error }
+    },
+    [garmentId],
+  )
 
-  useEffect(() => {
-    if (!garmentId) { setLoading(false); return }
-    setLoading(true)
-    supabase
-      .from('reseñas')
-      .select('id, rating, comment, created_at, user:perfiles(username, avatar_url)')
-      .eq('garment_id', garmentId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setReviews((data ?? []) as unknown as GarmentReview[])
-        setLoading(false)
-      })
-  }, [garmentId])
-
+  const reviews = data ?? []
   const average = reviews.length
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : 0
 
-  return { reviews, average, loading }
+  return { reviews, average, loading, error, refetch }
 }

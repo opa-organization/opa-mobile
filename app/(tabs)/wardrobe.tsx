@@ -22,6 +22,7 @@ import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
 import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { WardrobeItem, Garment, Brand, Outfit } from '../../types'
 
 const NUM_COLS = 3
@@ -69,7 +70,7 @@ export default function WardrobeScreen() {
 
 function PersonalWardrobeView({ userId }: { userId: string }) {
   const router = useRouter()
-  const { items, loading } = useWardrobe(userId)
+  const { items, loading, error, refetch } = useWardrobe(userId)
   const [activeSlot, setActiveSlot] = useState('all')
 
   const filtered = activeSlot === 'all'
@@ -106,6 +107,8 @@ function PersonalWardrobeView({ userId }: { userId: string }) {
 
       {loading ? (
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <ErrorState onRetry={refetch} />
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyIcon}>👚</Text>
@@ -172,7 +175,7 @@ function totalStock(g: Garment): number {
 function BrandCatalogView({ userId }: { userId: string }) {
   const router = useRouter()
   const { brand, loading: loadingBrand } = useMyBrand(userId)
-  const { garments, outfits, loading: loadingBrandData, refetch } = useBrand(brand?.id)
+  const { garments, outfits, loading: loadingBrandData, error, refetch } = useBrand(brand?.id)
   const [activeTab, setActiveTab] = useState<'prendas' | 'outfits'>('prendas')
 
   const loading = loadingBrand || loadingBrandData
@@ -236,6 +239,8 @@ function BrandCatalogView({ userId }: { userId: string }) {
 
       {loading ? (
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <ErrorState onRetry={refetch} />
       ) : activeTab === 'prendas' ? (
         garments.length === 0 ? (
           <View style={styles.center}>

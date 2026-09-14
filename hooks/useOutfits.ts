@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { logError } from '../lib/errorLog'
 import { Outfit } from '../types'
+
+const GENERIC_ERROR_MESSAGE = 'Uy, algo salió mal. Probá de nuevo.'
 
 const PAGE_SIZE = 10
 
@@ -54,7 +57,8 @@ export function useOutfits(creatorId?: string) {
         ? { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id }
         : cursor
     } catch (e: any) {
-      setError(e.message)
+      setError(GENERIC_ERROR_MESSAGE)
+      logError('useOutfits', e.message)
     } finally {
       setLoading(false)
       setLoadingMore(false)

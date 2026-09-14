@@ -20,11 +20,14 @@ import { useNotifications } from '../../hooks/useNotifications'
 import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { SectionHeader } from '../../components/home/SectionHeader'
+import { BrandsSlider } from '../../components/home/BrandsSlider'
 import { Avatar } from '../../components/ui/Avatar'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { Brand, Garment, Outfit } from '../../types'
 
 import { useAppWidth } from '../../constants/layout'
 import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
+import { initials } from '../../lib/text'
 
 // Carousel config
 const CARD_W = 220
@@ -113,7 +116,7 @@ function NotificationBell() {
 
 function ConsumerHomeView() {
   const router = useRouter()
-  const { outfits, loading } = useOutfits()
+  const { outfits, loading, error, refetch } = useOutfits()
 
   const garments: Garment[] = outfits
     .flatMap(o => o.garments?.map(g => g.garment) ?? [])
@@ -151,6 +154,8 @@ function ConsumerHomeView() {
 
         {loading ? (
           <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 60 }} />
+        ) : error ? (
+          <ErrorState onRetry={refetch} />
         ) : (
           <>
             {/* ── Outfits ─────────────────────────────────────────────────── */}
@@ -189,26 +194,7 @@ function ConsumerHomeView() {
 
             {/* ── Marcas ──────────────────────────────────────────────────── */}
             <SectionHeader title="Las Marcas que la Gente Elige" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.hScroll}
-            >
-              {brands.map(brand => (
-                <TouchableOpacity
-                  key={brand.id}
-                  style={styles.brandCard}
-                  activeOpacity={0.85}
-                  onPress={() => router.push(`/marca/${brand.id}`)}
-                >
-                  {brand.logo_url ? (
-                    <Image source={{ uri: brand.logo_url }} style={styles.brandLogo} contentFit="contain" />
-                  ) : (
-                    <Text style={styles.brandName} numberOfLines={2}>{brand.name}</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <BrandsSlider brands={brands} onPress={(brand) => router.push(`/marca/${brand.id}`)} />
 
             {/* ── Lo último que viste ─────────────────────────────────────── */}
             <SectionHeader title="Lo Último que Viste" />
@@ -243,18 +229,26 @@ function ConsumerHomeView() {
 function BrandHomeView() {
   const router = useRouter()
   const session = useAuthStore((s) => s.session)
-  const { brand, loading: loadingBrand } = useMyBrand(session?.user.id)
-  const { garments, outfits, loading: loadingBrandData } = useBrand(brand?.id)
+  const { brand, loading: loadingBrand, error: brandProfileError, refetch: refetchBrandProfile } = useMyBrand(session?.user.id)
+  const { garments, outfits, loading: loadingBrandData, error: brandDataError, refetch: refetchBrandData } = useBrand(brand?.id)
   const { likes, saves, followers, loading: loadingMetrics } = useBrandMetrics(brand?.profile_id)
-  const { garments: trending, loading: loadingTrending } = useTrendingGarments(brand?.id)
-  const { questions, totalCount: questionsTotal, loading: loadingQuestions } = useBrandQuestions(brand?.id, { limit: 3 })
+  const { garments: trending, loading: loadingTrending, error: trendingError, refetch: refetchTrending } = useTrendingGarments(brand?.id)
+  const { questions, totalCount: questionsTotal, loading: loadingQuestions, error: questionsError, refetch: refetchQuestions } = useBrandQuestions(brand?.id, { limit: 3 })
   const garmentIds = garments.map((g) => g.id)
-  const { reviews, loading: loadingReviews } = useBrandReviews(garmentIds)
+  const { reviews, loading: loadingReviews, error: reviewsError, refetch: refetchReviews } = useBrandReviews(garmentIds)
 
-  if (loadingBrand || loadingBrandData || !brand) {
+  if (loadingBrand || loadingBrandData) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 60 }} />
+      </SafeAreaView>
+    )
+  }
+
+  if (brandProfileError || brandDataError || !brand) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ErrorState onRetry={brandProfileError ? refetchBrandProfile : (brandDataError ? refetchBrandData : undefined)} />
       </SafeAreaView>
     )
   }
@@ -319,6 +313,8 @@ function BrandHomeView() {
         </View>
         {loadingQuestions ? (
           <ActivityIndicator color={colors.rosaOpa} style={{ marginVertical: 20 }} />
+        ) : questionsError ? (
+          <ErrorState onRetry={refetchQuestions} />
         ) : questions.length === 0 ? (
           <Text style={styles.emptySectionText}>No tenés preguntas pendientes.</Text>
         ) : (
@@ -388,6 +384,8 @@ function BrandHomeView() {
         <SectionHeader title="Prendas en tendencia" />
         {loadingTrending ? (
           <ActivityIndicator color={colors.rosaOpa} style={{ marginVertical: 20 }} />
+        ) : trendingError ? (
+          <ErrorState onRetry={refetchTrending} />
         ) : trending.length === 0 ? (
           <Text style={styles.emptySectionText}>Todavía no cargaste prendas.</Text>
         ) : (
@@ -425,6 +423,8 @@ function BrandHomeView() {
         <SectionHeader title="Opiniones recientes" />
         {loadingReviews ? (
           <ActivityIndicator color={colors.rosaOpa} style={{ marginVertical: 20 }} />
+        ) : reviewsError ? (
+          <ErrorState onRetry={refetchReviews} />
         ) : reviews.length === 0 ? (
           <Text style={styles.emptySectionText}>Todavía no tenés reseñas.</Text>
         ) : (
@@ -461,11 +461,6 @@ function KpiCard({ label, value }: { label: string; value: number }) {
       <Text style={styles.kpiLabel}>{label}</Text>
     </View>
   )
-}
-
-function initials(username?: string | null) {
-  if (!username) return '?'
-  return username.slice(0, 2).toUpperCase()
 }
 
 const styles = StyleSheet.create({
@@ -555,28 +550,6 @@ const styles = StyleSheet.create({
   },
   rankBadgeText: { fontSize: 11, fontWeight: '800', color: colors.blanco },
 
-  // Brands
-  brandCard: {
-    width: 110,
-    height: 110,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderColor: colors.negro,
-    backgroundColor: colors.blanco,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    padding: 8,
-  },
-  brandLogo: { width: '100%', height: '100%' },
-  brandName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.negro,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
 
   // Recently viewed
   recentCard: {

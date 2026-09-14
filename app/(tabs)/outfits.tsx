@@ -9,6 +9,7 @@ import { useLocalSearchParams, Redirect } from 'expo-router'
 import { useOutfits } from '../../hooks/useOutfits'
 import { useFollowedBrandIds } from '../../hooks/useFollowedBrandIds'
 import { OutfitScrollItem } from '../../components/outfit/OutfitScrollItem'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { colors } from '../../constants/colors'
 import { useAuthStore } from '../../store/useAuthStore'
 import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
@@ -35,7 +36,7 @@ export default function OutfitsScreen() {
   const tabBarHeight = 8 + 48 + (insets.bottom || 8) + 1
   const pageH = SH - tabBarHeight
   const profile = useAuthStore((s) => s.profile)
-  const { outfits, loading, loadingMore, hasMore, loadMore } = useOutfits()
+  const { outfits, loading, loadingMore, hasMore, error, loadMore, refetch } = useOutfits()
   const { brandIds: followedBrandIds, loading: loadingBrands } = useFollowedBrandIds()
   const { outfitId } = useLocalSearchParams<{ outfitId?: string }>()
   const flatListRef = useRef<FlatList>(null)
@@ -83,6 +84,14 @@ export default function OutfitsScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator color={colors.blanco} size="large" />
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ErrorState variant="dark" onRetry={refetch} />
       </View>
     )
   }

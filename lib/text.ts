@@ -12,3 +12,11 @@ export function dedupeCaseInsensitive(values: string[]): string[] {
   }
   return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'))
 }
+
+// Iniciales para el fallback de un avatar (2 letras) cuando no hay foto —
+// antes copiada igual en app/(tabs)/index.tsx, app/notifications.tsx y
+// app/brand/questions.tsx.
+export function initials(name?: string | null): string {
+  if (!name) return '?'
+  return name.slice(0, 2).toUpperCase()
+}

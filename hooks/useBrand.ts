@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSupabaseQuery } from './useSupabaseQuery'
 import { supabase } from '../lib/supabase'
 import { Brand, Garment, Outfit } from '../types'
 
@@ -7,84 +8,71 @@ interface BrandData {
   garments: Garment[]   // catálogo (prendas de la marca)
   outfits: Outfit[]     // outfits publicados por la cuenta de la marca
   followersCount: number
-  adjustFollowersCount: (delta: number) => void
-  loading: boolean
-  refetch: () => void
 }
 
 // Carga todo lo que necesita el perfil público de una marca.
 // Nota: outfits y seguidores dependen de marcas.profile_id (la cuenta Auth de la
 // marca). Mientras el onboarding de marcas no exista, profile_id es null y ambos
 // quedan vacíos — el catálogo (prendas por brand_id) sí tiene datos reales.
-export function useBrand(brandId?: string): BrandData {
-  const [brand, setBrand] = useState<Brand | null>(null)
-  const [garments, setGarments] = useState<Garment[]>([])
-  const [outfits, setOutfits] = useState<Outfit[]>([])
-  const [followersCount, setFollowersCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+export function useBrand(brandId?: string) {
+  const { data, loading, error, refetch } = useSupabaseQuery<BrandData>(
+    'useBrand',
+    async () => {
+      if (!brandId) return { data: { brand: null, garments: [], outfits: [], followersCount: 0 }, error: null }
 
-  useEffect(() => {
-    if (!brandId) {
-      setLoading(false)
-      return
-    }
-    fetchAll(brandId)
-  }, [brandId])
-
-  async function fetchAll(id: string) {
-    setLoading(true)
-    try {
-      const { data: brandRow } = await supabase
+      const { data: brandRow, error: brandError } = await supabase
         .from('marcas')
         .select('*')
-        .eq('id', id)
+        .eq('id', brandId)
         .single()
-      setBrand(brandRow)
+      if (brandError) return { data: null, error: brandError }
 
-      // Catálogo: prendas de esta marca
-      const { data: prendas } = await supabase
-        .from('prendas')
-        .select('*, brand:marcas(*)')
-        .eq('brand_id', id)
-        .order('created_at', { ascending: false })
-      setGarments((prendas as Garment[]) ?? [])
-
+      // Catálogo (independiente de profile_id) puede pedirse en paralelo con
+      // el resto — solo outfits/seguidores dependen del resultado de arriba.
       const profileId = brandRow?.profile_id
-      if (profileId) {
-        const { data: brandOutfits } = await supabase
-          .from('outfits')
-          .select('*, creator:perfiles(*), garments:outfit_items(*, garment:prendas(*, brand:marcas(*)))')
-          .eq('creator_id', profileId)
-          .order('created_at', { ascending: false })
-        setOutfits((brandOutfits as Outfit[]) ?? [])
+      const [prendasRes, outfitsRes, followersRes] = await Promise.all([
+        supabase.from('prendas').select('*, brand:marcas(*)').eq('brand_id', brandId).order('created_at', { ascending: false }),
+        profileId
+          ? supabase.from('outfits').select('*, creator:perfiles(*), garments:outfit_items(*, garment:prendas(*, brand:marcas(*)))').eq('creator_id', profileId).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        profileId
+          ? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileId)
+          : Promise.resolve({ count: 0, error: null }),
+      ])
 
-        const { count } = await supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('following_id', profileId)
-        setFollowersCount(count ?? 0)
-      } else {
-        setOutfits([])
-        setFollowersCount(0)
+      const error = prendasRes.error ?? outfitsRes.error ?? (followersRes as { error: any }).error
+      return {
+        data: {
+          brand: brandRow,
+          garments: (prendasRes.data as Garment[]) ?? [],
+          outfits: (outfitsRes.data as Outfit[]) ?? [],
+          followersCount: (followersRes as { count: number | null }).count ?? 0,
+        },
+        error,
       }
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    [brandId],
+  )
 
   // Ajuste optimista del contador tras Seguir/Siguiendo — evita depender de un
   // refetch completo (mismo patrón que el optimistic update de useLike/useSave).
+  // Vive en un estado propio en vez de derivar de `data`, y se resetea cada vez
+  // que llega un `data` nuevo (fetch inicial o refetch real) para no arrastrar
+  // un ajuste viejo sobre un conteo que la DB ya trae actualizado.
+  const [followersAdjustment, setFollowersAdjustment] = useState(0)
+  useEffect(() => { setFollowersAdjustment(0) }, [data])
   function adjustFollowersCount(delta: number) {
-    setFollowersCount((prev) => Math.max(0, prev + delta))
+    setFollowersAdjustment((prev) => prev + delta)
   }
 
-  // Memoizado: BrandCatalogView lo pasa a useFocusEffect(useCallback(() => refetch(), [refetch])) —
-  // si refetch cambiara de identidad en cada render (como antes), ese useCallback
-  // quedaría sin efecto y useFocusEffect se re-dispararía en cada render, generando
-  // un loop infinito de fetches (encontrado 2026-08-14 probando otro cambio).
-  const refetch = useCallback(() => {
-    if (brandId) fetchAll(brandId)
-  }, [brandId])
-
-  return { brand, garments, outfits, followersCount, adjustFollowersCount, loading, refetch }
+  return {
+    brand: data?.brand ?? null,
+    garments: data?.garments ?? [],
+    outfits: data?.outfits ?? [],
+    followersCount: Math.max(0, (data?.followersCount ?? 0) + followersAdjustment),
+    adjustFollowersCount,
+    loading,
+    error,
+    refetch,
+  }
 }

@@ -5,7 +5,7 @@ import {
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
@@ -17,26 +17,13 @@ import { useFollow } from '../../hooks/useFollow'
 import { useAuthStore } from '../../store/useAuthStore'
 import { STORAGE_BASE_URL } from '../../constants/storage'
 import { Avatar } from '../../components/ui/Avatar'
+import { ErrorState } from '../../components/ui/ErrorState'
+import { StandaloneBottomNavBar } from '../../components/navigation/StandaloneBottomNavBar'
 
 const BASE = `${STORAGE_BASE_URL}/`
-const NAV_BASE = BASE + 'nav/'
-
-// Misma navbar que (tabs)/_layout, pero standalone: esta pantalla vive fuera del Tabs
-// navigator, así que no puede reusar BottomNavBar (necesita props de react-navigation).
-const NAV_TABS = [
-  { key: 'index', href: '/(tabs)', icon: NAV_BASE + 'home.png', iconActive: NAV_BASE + 'home_rosa.png' },
-  { key: 'outfits', href: '/(tabs)/outfits', icon: NAV_BASE + 'outfit_v2.png', iconActive: NAV_BASE + 'outfit_rosa_v2.png' },
-  { key: 'search', href: '/(tabs)/search', icon: NAV_BASE + 'search.png', iconActive: NAV_BASE + 'search_rosa.png' },
-  { key: 'wardrobe', href: '/(tabs)/wardrobe', icon: NAV_BASE + 'armario.png', iconActive: NAV_BASE + 'armario_rosa.png' },
-  { key: 'profile', href: '/(tabs)/profile', icon: NAV_BASE + 'user.png', iconActive: NAV_BASE + 'user_rosa.png' },
-] as const
-
-// Cuentas de marca no tienen armario personal — mismo criterio que BottomNavBar.tsx
-const CATALOGO_ICONS = { icon: BASE + 'catalogo.png', iconActive: BASE + 'catalogo_rosa.png' }
 
 export default function UserProfileScreen() {
   const router = useRouter()
-  const insets = useSafeAreaInsets()
   const { id } = useLocalSearchParams<{ id: string }>()
   const screenWidth = useAppWidth()
   const cardWidth = Math.floor((screenWidth - spacing.md * 2 - 4 * 2) / 3)
@@ -44,8 +31,8 @@ export default function UserProfileScreen() {
   const viewerProfile = useAuthStore((s) => s.profile)
   // Las cuentas de marca no pueden seguir a otras cuentas ni acceder al feed.
   const viewerIsBrand = !!viewerProfile?.is_brand
-  const { profile, loading: profileLoading } = useProfile(id)
-  const { outfits, loading: outfitsLoading } = useOutfits(id)
+  const { profile, loading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(id)
+  const { outfits, loading: outfitsLoading, error: outfitsError, refetch: refetchOutfits } = useOutfits(id)
   const { following, toggle: toggleFollow } = useFollow(id ?? '')
 
   const isOwnProfile = !!session && session.user.id === id
@@ -56,10 +43,18 @@ export default function UserProfileScreen() {
 
   if (isOwnProfile) return null
 
-  if (profileLoading || !profile) {
+  if (profileLoading) {
     return (
       <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
         <ActivityIndicator color={colors.rosaOpa} size="large" />
+      </SafeAreaView>
+    )
+  }
+
+  if (profileError || !profile) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
+        <ErrorState onRetry={profileError ? refetchProfile : undefined} />
       </SafeAreaView>
     )
   }
@@ -158,6 +153,8 @@ export default function UserProfileScreen() {
 
         {outfitsLoading ? (
           <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 32 }} />
+        ) : outfitsError ? (
+          <ErrorState onRetry={refetchOutfits} />
         ) : outfits.length === 0 ? (
           <View style={styles.emptyTab}>
             <Text style={styles.emptyTabIcon}>🎽</Text>
@@ -196,29 +193,7 @@ export default function UserProfileScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Bottom navbar — pantalla fuera del Tabs navigator, se arma standalone */}
-      <View style={[styles.navBar, { paddingBottom: insets.bottom || 8 }]}>
-        {NAV_TABS.filter((tab) => !(viewerIsBrand && tab.key === 'outfits')).map((tab) => {
-          const active = tab.key === 'profile'
-          const icons = tab.key === 'wardrobe' && viewerIsBrand ? CATALOGO_ICONS : tab
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={styles.navTab}
-              activeOpacity={0.7}
-              onPress={() => router.push(tab.href as any)}
-            >
-              <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
-                <Image
-                  source={{ uri: active ? icons.iconActive : icons.icon }}
-                  style={styles.navIcon}
-                  contentFit="contain"
-                />
-              </View>
-            </TouchableOpacity>
-          )
-        })}
-      </View>
+      <StandaloneBottomNavBar viewerIsBrand={viewerIsBrand} activeKey="profile" />
     </SafeAreaView>
   )
 }
@@ -291,17 +266,4 @@ const styles = StyleSheet.create({
   emptyTabIcon: { fontSize: 36 },
   emptyTabText: { color: colors.grisClaro, fontSize: 14, textAlign: 'center' },
 
-  // Bottom navbar (calcado de components/navigation/BottomNavBar.tsx)
-  navBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.blanco,
-    borderTopWidth: 1,
-    borderTopColor: colors.grisBorde,
-    paddingTop: 8,
-    paddingHorizontal: 4,
-  },
-  navTab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  navIconWrap: { width: 48, height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  navIconWrapActive: { backgroundColor: colors.rosaOpaLight },
-  navIcon: { width: 28, height: 28 },
 })

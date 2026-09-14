@@ -1,30 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useSupabaseQuery } from './useSupabaseQuery'
 import { supabase } from '../lib/supabase'
 import { WardrobeItem } from '../types'
 
 export function useWardrobe(userId?: string) {
-  const [items, setItems] = useState<WardrobeItem[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!userId) {
-      setLoading(false)
-      return
-    }
-    fetchWardrobe(userId)
-  }, [userId])
-
-  async function fetchWardrobe(id: string) {
-    try {
-      const { data } = await supabase
+  const { data, loading, error, refetch } = useSupabaseQuery<WardrobeItem[]>(
+    'useWardrobe',
+    async () => {
+      if (!userId) return { data: [], error: null }
+      const { data, error } = await supabase
         .from('prendas_armario')
         .select('*, garment:prendas(*, brand:marcas(*))')
-        .eq('user_id', id)
-      setItems((data as WardrobeItem[]) ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }
+        .eq('user_id', userId)
+      return { data: (data ?? []) as WardrobeItem[], error }
+    },
+    [userId],
+  )
 
-  return { items, loading }
+  return { items: data ?? [], loading, error, refetch }
 }

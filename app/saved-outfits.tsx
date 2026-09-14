@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSavedOutfits } from '../hooks/useSavedOutfits'
 import { OutfitScrollItem } from '../components/outfit/OutfitScrollItem'
+import { ErrorState } from '../components/ui/ErrorState'
 import { colors } from '../constants/colors'
 import { useAuthStore } from '../store/useAuthStore'
 
@@ -14,7 +15,7 @@ export default function SavedOutfitsScreen() {
   const { startIndex } = useLocalSearchParams<{ startIndex?: string }>()
   const { height: SH } = useWindowDimensions()
   const session = useAuthStore((s) => s.session)
-  const { outfits, loading } = useSavedOutfits(session?.user.id)
+  const { outfits, loading, error, refetch } = useSavedOutfits(session?.user.id)
   const [activeIndex, setActiveIndex] = useState(0)
   const flatListRef = useRef<FlatList>(null)
   const didScrollRef = useRef(false)
@@ -42,6 +43,14 @@ export default function SavedOutfitsScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator color={colors.blanco} size="large" />
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ErrorState variant="dark" onRetry={refetch} />
       </View>
     )
   }

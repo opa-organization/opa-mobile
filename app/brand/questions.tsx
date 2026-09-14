@@ -14,12 +14,9 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { useBrandQuestions } from '../../hooks/useBrandQuestions'
 import { timeAgo } from '../../lib/timeAgo'
+import { initials } from '../../lib/text'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
-
-function initials(username?: string | null) {
-  if (!username) return '?'
-  return username.slice(0, 2).toUpperCase()
-}
 
 // Destino del "→" de la sección "Preguntas sin responder" en la Home de marca.
 // Muestra TODAS las pendientes (Home solo muestra las primeras 3) y acá vive
@@ -29,7 +26,7 @@ export default function BrandQuestionsScreen() {
   const router = useRouter()
   const session = useAuthStore((s) => s.session)
   const { brand } = useMyBrand(session?.user.id)
-  const { questions, totalCount, loading, answer } = useBrandQuestions(brand?.id)
+  const { questions, totalCount, loading, error, refetch, answer } = useBrandQuestions(brand?.id)
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -65,6 +62,8 @@ export default function BrandQuestionsScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <ErrorState onRetry={refetch} />
       ) : questions.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyText}>No tenés preguntas pendientes.</Text>

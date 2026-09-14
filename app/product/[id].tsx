@@ -16,6 +16,7 @@ import {
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
+import { logError } from '../../lib/errorLog'
 import { useSizeGuide } from '../../hooks/useSizeGuide'
 import { useRecommendedSize } from '../../hooks/useRecommendedSize'
 import { useSaveGarment } from '../../hooks/useSaveGarment'
@@ -28,6 +29,7 @@ import { useGarmentImages } from '../../hooks/useGarmentImages'
 import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { ZoomableImage } from '../../components/product/ZoomableImage'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
@@ -45,6 +47,7 @@ export default function ProductDetail() {
   const [garment, setGarment] = useState<Garment & { brand?: Brand } | null>(null)
   const [related, setRelated] = useState<Garment[]>([])
   const [loading, setLoading] = useState(true)
+  const [garmentError, setGarmentError] = useState(false)
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [sizeSheetVisible, setSizeSheetVisible] = useState(false)
@@ -59,9 +62,9 @@ export default function ProductDetail() {
   const { recommendation } = useRecommendedSize(garment?.size_guide_id)
   const { saved, toggle: toggleSave, requiresAuth: saveRequiresAuth } = useSaveGarment(garment?.id)
   const { addItem, count: cartCount } = useCart()
-  const { reviews, average, loading: reviewsLoading } = useGarmentReviews(garment?.id)
+  const { reviews, average, loading: reviewsLoading, error: reviewsError, refetch: refetchReviews } = useGarmentReviews(garment?.id)
   const { ask, sending: askSending, requiresAuth: askRequiresAuth } = useAskQuestion()
-  const { questions, loading: questionsLoading, refetch: refetchQuestions } = useGarmentQuestions(garment?.id)
+  const { questions, loading: questionsLoading, error: questionsError, refetch: refetchQuestions } = useGarmentQuestions(garment?.id)
   const session = useAuthStore((s) => s.session)
   const viewerIsBrand = useAuthStore((s) => !!s.profile?.is_brand)
   const { brand: myBrand } = useMyBrand(viewerIsBrand ? session?.user.id : undefined)
@@ -88,12 +91,18 @@ export default function ProductDetail() {
 
   async function fetchGarment(garmentId: string) {
     setLoading(true)
-    const { data } = await supabase
+    setGarmentError(false)
+    const { data, error } = await supabase
       .from('prendas')
       .select('*, brand:marcas(*)')
       .eq('id', garmentId)
       .maybeSingle()
-    setGarment(data as (Garment & { brand?: Brand }) | null)
+    if (error) {
+      setGarmentError(true)
+      logError('ProductDetail.fetchGarment', error.message)
+    } else {
+      setGarment(data as (Garment & { brand?: Brand }) | null)
+    }
     setSelectedSize(null)
     setQuantity(1)
     setLoading(false)
@@ -147,6 +156,19 @@ export default function ProductDetail() {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator color={colors.rosaOpa} style={{ flex: 1 }} />
+      </SafeAreaView>
+    )
+  }
+
+  if (garmentError) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backIcon} contentFit="contain" />
+        </TouchableOpacity>
+        <View style={styles.center}>
+          <ErrorState onRetry={() => id && fetchGarment(id)} />
+        </View>
       </SafeAreaView>
     )
   }
@@ -419,6 +441,8 @@ export default function ProductDetail() {
             </View>
             {reviewsLoading ? (
               <ActivityIndicator color={colors.rosaOpa} style={{ marginVertical: spacing.md }} />
+            ) : reviewsError ? (
+              <ErrorState onRetry={refetchReviews} />
             ) : reviews.length === 0 ? (
               <Text style={styles.reviewsEmpty}>Aún no hay reseñas de esta prenda.</Text>
             ) : (
@@ -469,6 +493,8 @@ export default function ProductDetail() {
 
             {questionsLoading ? (
               <ActivityIndicator color={colors.rosaOpa} style={{ marginVertical: spacing.md }} />
+            ) : questionsError ? (
+              <ErrorState onRetry={refetchQuestions} />
             ) : questions.length === 0 ? (
               <Text style={styles.questionsEmpty}>Todavía no hay preguntas sobre esta prenda. ¡Sé el primero en preguntar!</Text>
             ) : (

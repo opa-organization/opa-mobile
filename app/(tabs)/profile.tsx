@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { STORAGE_BASE_URL } from '../../constants/storage'
 import { Avatar } from '../../components/ui/Avatar'
+import { ErrorState } from '../../components/ui/ErrorState'
 
 const BASE = `${STORAGE_BASE_URL}/`
 
@@ -52,9 +53,9 @@ export default function ProfileScreen() {
   const { brand: myBrand, loading: myBrandLoading } = useMyBrand(
     profile?.is_brand ? session?.user.id : undefined
   )
-  const { outfits, loading: outfitsLoading } = useOutfits(session?.user.id)
-  const { outfits: savedOutfits, loading: savedLoading, refetch: refetchSaved } = useSavedOutfits(session?.user.id)
-  const { garments: savedGarments, loading: savedGarmentsLoading, refetch: refetchSavedGarments } = useSavedGarments(session?.user.id)
+  const { outfits, loading: outfitsLoading, error: outfitsError, refetch: refetchOutfits } = useOutfits(session?.user.id)
+  const { outfits: savedOutfits, loading: savedLoading, error: savedError, refetch: refetchSaved } = useSavedOutfits(session?.user.id)
+  const { garments: savedGarments, loading: savedGarmentsLoading, error: savedGarmentsError, refetch: refetchSavedGarments } = useSavedGarments(session?.user.id)
 
   if (!initialized) {
     return (
@@ -187,6 +188,8 @@ export default function ProfileScreen() {
         {activeTab === 'grid' && (
           outfitsLoading ? (
             <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 32 }} />
+          ) : outfitsError ? (
+            <ErrorState onRetry={refetchOutfits} />
           ) : outfits.length === 0 ? (
             <View style={styles.emptyTab}>
               <Text style={styles.emptyTabIcon}>🎽</Text>
@@ -251,6 +254,8 @@ export default function ProfileScreen() {
             {favSubTab === 'outfits' && (
               savedLoading ? (
                 <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 32 }} />
+              ) : savedError ? (
+                <ErrorState onRetry={refetchSaved} />
               ) : savedOutfits.length === 0 ? (
                 <View style={styles.emptyTab}>
                   <Text style={styles.emptyTabIcon}>★</Text>
@@ -291,6 +296,8 @@ export default function ProfileScreen() {
             {favSubTab === 'prendas' && (
               savedGarmentsLoading ? (
                 <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 32 }} />
+              ) : savedGarmentsError ? (
+                <ErrorState onRetry={refetchSavedGarments} />
               ) : savedGarments.length === 0 ? (
                 <View style={styles.emptyTab}>
                   <Text style={styles.emptyTabIcon}>👗</Text>

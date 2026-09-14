@@ -6,13 +6,14 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useOutfits } from '../hooks/useOutfits'
 import { OutfitScrollItem } from '../components/outfit/OutfitScrollItem'
+import { ErrorState } from '../components/ui/ErrorState'
 import { colors } from '../constants/colors'
 
 export default function UserOutfitsScreen() {
   const router = useRouter()
   const { userId, startIndex } = useLocalSearchParams<{ userId: string; startIndex?: string }>()
   const { height: SH } = useWindowDimensions()
-  const { outfits, loading, loadingMore, hasMore, loadMore } = useOutfits(userId)
+  const { outfits, loading, loadingMore, hasMore, error, loadMore, refetch } = useOutfits(userId)
   const [activeIndex, setActiveIndex] = useState(0)
   const flatListRef = useRef<FlatList>(null)
   const didScrollRef = useRef(false)
@@ -40,6 +41,14 @@ export default function UserOutfitsScreen() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator color={colors.blanco} size="large" />
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ErrorState variant="dark" onRetry={refetch} />
       </View>
     )
   }

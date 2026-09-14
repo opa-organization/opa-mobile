@@ -11,13 +11,9 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useNotifications } from '../hooks/useNotifications'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/timeAgo'
+import { initials } from '../lib/text'
 import { AppNotification } from '../types'
 import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
-
-function initials(name?: string | null) {
-  if (!name) return '?'
-  return name.slice(0, 2).toUpperCase()
-}
 
 function messageFor(n: AppNotification): string {
   const actorName = n.actor?.display_name || (n.actor?.username ? `@${n.actor.username}` : 'Alguien')

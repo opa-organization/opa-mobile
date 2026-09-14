@@ -52,35 +52,48 @@ El usuario eligió adoptar `Avatar.tsx` en vez de borrarlo. Al investigar aparec
 
 **Verificado:** `tsc --noEmit` limpio. Probado en browser real logueado como Capas — fallback rosa con "C" en Settings y en "Cambiar de cuenta" (círculo dashed "+" de agregar cuenta intacto, no se tocó), avatar-logo con anillo blanco en el perfil propio de marca, logo real en el header de la Home de marca — sin ninguna diferencia visual respecto a antes.
 
-### B2. `components/ui/Badge.tsx` — ¿mantener para el pendiente de "badge de descuento" o borrar?
+### ✅ B2. `components/ui/Badge.tsx` — RESUELTO (2026-09-14): borrado
 
-Cero referencias hoy, pero `CLAUDE.md` documenta un pendiente ("Badge de descuento — X% OFF" en la barra de precio del outfit scroll) que necesitaría exactamente un componente así el día que se agregue `discount_percent` a la DB.
+El usuario decidió borrarlo en vez de mantenerlo a la espera del pendiente de "badge de descuento" — se rehace si/cuando se implemente esa feature (requiere primero agregar `discount_percent` a la DB, algo que ni siquiera está en curso). Confirmado con grep que seguía sin ningún consumidor real antes de borrar. `tsc --noEmit` limpio.
 
-**Opciones:** mantenerlo a la espera de esa feature, o borrarlo ahora y rehacerlo si/cuando se implemente el descuento.
+### ✅ B3. `components/home/BrandsSlider.tsx` + `HorizontalSlider.tsx` — RESUELTO (2026-09-14): opción 1, conectado
 
-### B3. `components/home/BrandsSlider.tsx` + `HorizontalSlider.tsx` — ¿conectar o borrar?
+**Hallazgo antes de conectar:** `BrandsSlider.tsx` NO era idéntico al código que ya usaba el Home — su fallback (prenda/marca sin logo) mostraba una foto de stock externa de `picsum.photos` en vez del nombre de la marca en texto, y el tamaño/estilo de la card también difería (115px vs. 110px del Home real). Conectarlo tal cual habría sido un cambio de UX real (placeholder externo en vez del nombre de la marca), no solo una limpieza de código — así que primero se reescribió `BrandsSlider.tsx` para replicar exactamente el diseño que ya se veía en el Home (card 110×110, borde negro, `contentFit="contain"`, fallback = nombre de la marca en texto, nunca una imagen de terceros), y recién ahí se reemplazó el bloque `ScrollView horizontal` + `.map()` inline de `app/(tabs)/index.tsx` por `<BrandsSlider brands={brands} onPress={...} />` (que internamente ya usa `HorizontalSlider`, así que ese también quedó conectado). Estilos `brandCard`/`brandLogo`/`brandName` (ahora muertos en `index.tsx`) eliminados.
 
-`BrandsSlider` fue construido específicamente para la sección "Las Marcas que la Gente Elige" del Home, pero esa sección la reimplementa a mano en `app/(tabs)/index.tsx` en su lugar — ninguno de los dos componentes tiene consumidores reales hoy. `HorizontalSlider` es el wrapper genérico que además resolvería los ~6 `ScrollView horizontal` inline que tiene duplicados el Home.
+**Fuera de alcance, no pedido:** los otros ~6 `ScrollView horizontal` inline que tiene el Home (Outfits, Últimas Prendas, Lo último que viste, etc.) NO se tocaron — el pedido era específicamente sobre `BrandsSlider`/`HorizontalSlider`, no un rediseño general de cómo se arman los carruseles del Home.
 
-**Opciones:**
-1. Conectar `BrandsSlider`/`HorizontalSlider` reemplazando el código inline del Home (arregla la duplicación real).
-2. Borrar ambos y dejar el Home como está.
+**Verificado:** `tsc --noEmit` limpio, probado en browser real (logout → Home de consumidor → sección "Las Marcas que la Gente Elige" con Capas/Revés/Forma) — visualmente idéntica a antes.
 
-### B4. Refactors grandes de duplicación de pantallas (bajo riesgo, pero tocan mucha superficie)
+### B4. Refactors grandes de duplicación de pantallas
 
-- Unificar `app/user-outfits.tsx` y `app/saved-outfits.tsx` (casi copias exactas) en un componente compartido.
-- Unificar la navbar standalone duplicada al 100% entre `app/user/[id].tsx` y `app/marca/[id].tsx`.
-- Extraer la función `initials()` (copiada 3 veces) a `lib/text.ts`.
+- **❌ `app/user-outfits.tsx` / `app/saved-outfits.tsx` — NO se unifican, decisión de producto (2026-09-14).** El usuario aclaró que `user-outfits.tsx` está pensado para divergir de `saved-outfits.tsx` a futuro (la idea es poder editar/borrar el outfit desde esa vista) — unificarlas ahora iría en contra de ese plan. Queda documentado para que ninguna sesión futura intente "corregir" esta duplicación sin saber que es intencional.
 
-**Decisión:** ¿lo hago ahora (uno, varios, o todos) o lo dejamos para una sesión aparte dedicada a esto? Cada uno es un cambio autocontenido, puedo hacerlos de a uno.
+- **✅ Navbar standalone duplicada — RESUELTO (2026-09-14).** Nuevo `components/navigation/StandaloneBottomNavBar.tsx`, usado por `app/user/[id].tsx` y `app/marca/[id].tsx` en vez de cada uno con su propia copia de `NAV_TABS`/`CATALOGO_ICONS`/el bloque de render. **Detalle encontrado al unificar:** las dos pantallas no eran 100% idénticas — `user/[id].tsx` mostraba un circulito rosa de fondo detrás del ícono activo (`navIconWrapActive`), pero `marca/[id].tsx` nunca lo tuvo (posible descuido al copiar en su momento, no algo que se haya decidido tocar ahora). Se preservó la diferencia tal cual con una prop (`showActiveHighlight`) en vez de unificar el look de las dos pantallas de una — eso sería una decisión de UX aparte, no pedida. Verificado en browser real logueado como Capas: perfil propio de marca sin el círculo, perfil de `Mateo Herrera` (`user/[id].tsx`) con el círculo — cada uno igual que antes. `tsc` limpio.
 
-### B5. `useSupabaseQuery` genérico — el cambio de mayor impacto, pero el más grande
+- **✅ `initials()` — RESUELTO (2026-09-14).** Las 3 copias idénticas (`app/(tabs)/index.tsx`, `app/notifications.tsx`, `app/brand/questions.tsx`) se reemplazaron por un import desde `lib/text.ts` (mismo archivo que ya tenía `dedupeCaseInsensitive`). `tsc` limpio.
 
-~15 hooks repiten casi el mismo patrón `data/loading/error` con `useEffect` + `try/finally`, y ~19 de 21 hooks de lectura descartan el `error` de Supabase en silencio (un fallo real de red/RLS se ve igual que "no hay datos"). Un hook genérico compartido resolvería ambas cosas de un saque.
+### ✅ B5. `useSupabaseQuery` genérico + UI de error + logging a Supabase — RESUELTO (2026-09-14)
 
-**Por qué es "decisión" y no "respuesta única":** además de la extracción en sí (mecánica), hay que decidir **qué hacer con el `error` una vez que se empiece a exponer** — ¿se agrega una UI de error en cada pantalla que lo consuma (cambio de UX visible), o se deja solo disponible para debug sin mostrar nada todavía? Y por el volumen (~15 archivos tocados), prefiero encarar esto como una tarea aparte en vez de mezclarlo con el resto.
+El usuario eligió la opción completa: hook genérico + mensaje "Uy, algo salió mal. Probá de nuevo." visible en cada pantalla afectada + cada error real logueado a una tabla nueva en Supabase para que opa-dev (el propio usuario) lo pueda revisar después.
 
-**Opciones:** (a) hacerlo ahora como una tarea dedicada, (b) hacerlo hook por hook empezando por los más críticos (`useBrand`, `useCart`), (c) dejarlo documentado como pendiente para más adelante.
+**Infraestructura nueva:**
+- **Tabla `error_logs`** (Supabase, migración `create_error_logs_table`): `source` (hook/pantalla), `message` (error crudo), `details` (jsonb opcional), `user_id` (nullable), `platform`. RLS: cualquier cliente puede insertar su propia fila (`user_id IS NULL OR user_id = auth.uid()`), **nadie puede leer/editar salvo `service_role`** (mismo patrón que `admin_impersonation_log`) — no hay pantalla en la app para verlos todavía, se consultan por SQL directo (o a futuro desde `opa-admin`).
+- **`lib/errorLog.ts`** — `logError(source, message, details?)`, best-effort (si el propio insert falla, no rompe nada más).
+- **`hooks/useSupabaseQuery.ts`** — hook genérico `data/loading/error/refetch` con cancelación (una respuesta vieja no pisa una más nueva) y logging automático a `error_logs` en cualquier error real.
+- **`components/ui/ErrorState.tsx`** — mensaje + botón "Reintentar" compartido. Con `variant="dark"` para los 3 scrolls full-bleed de fondo negro (`app/(tabs)/outfits.tsx`, `app/user-outfits.tsx`, `app/saved-outfits.tsx`), donde el texto gris oscuro default sería casi invisible.
+
+**Hooks migrados a `useSupabaseQuery`** (15): `useProfile`, `useMyBrand`, `useWardrobe`, `useSavedGarments`, `useSavedOutfits`, `useSizeGuide`, `useBrandReviews`, `useGarmentReviews`, `useGarmentImages`, `useTrendingGarments`, `useSizeGuidesForCategory`, `useBrand`, `useRecommendedSize`, `useGarmentQuestions`, `useBrandQuestions`. `useOutfits` no se migró entero (tiene paginación por cursor propia que no encaja en el hook genérico) pero se le agregó el mismo mensaje genérico + `logError()`. Los 2 fetches inline que quedaban sueltos en pantallas de detalle (`app/product/[id].tsx` `fetchGarment`, `app/outfit/[id].tsx` `fetchOutfit`) también quedaron con logging + `ErrorState`.
+
+**Hallazgo real encontrado migrando `useGarmentImages`:** la versión vieja, sin querer, ya caía al `fallbackUrl` (portada) si la query de la galería fallaba — porque nunca chequeaba `error` y trataba `data: null` como "sin filas". Mi primera versión del hook migrado perdía ese fallback en caso de error real (mostraba galería vacía en vez de la portada). Corregido antes de dar por terminado — es la clase de regresión silenciosa que se busca evitar auditando bien cada migración en vez de aplicar el mismo patrón mecánicamente.
+
+**Trade-off consciente en `useBrandQuestions.answer()`:** antes de este cambio, responder una pregunta sacaba la fila de la lista local a mano (sin refetch); ahora hace un `refetch()` real tras guardar, para que la lista y el contador total siempre queden consistentes con la DB — a costa de un round-trip extra en vez de una actualización instantánea local.
+
+**`useCart` deliberadamente NO migrado** — sus mutaciones (`addItem`/`updateQuantity`/`removeItem`) hacen updates optimistas encadenados con la función de fetch de una forma que no encaja limpio en el hook genérico, y el tratamiento de sus errores es justamente el tema de B6 (todavía sin decidir). Se migra junto con B6, no antes.
+
+**Verificado de punta a punta:**
+- `tsc --noEmit` limpio.
+- Simulación de un error real: se rompió `useProfile` a propósito (columna inexistente) contra Supabase real, se confirmó que `/user/[id]` mostró el mensaje de error + botón "Reintentar", que **2 filas reales** llegaron a `error_logs` (una por cada intento, con el mensaje real de Postgres: `column perfiles.columna_de_prueba_que_no_existe does not exist`), y que "Reintentar" efectivamente vuelve a disparar la query. Bug revertido y filas de prueba borradas de `error_logs` al terminar.
+- Recorrido normal por browser real (sin errores) confirmando que nada se rompió: Home de consumidor, detalle de prenda (galería, guía de talles, reseñas, preguntas, "Más de esta marca"), perfil de marca ajeno, Home de marca (las 5 secciones), catálogo de marca — todas con datos reales, sin ningún `ErrorState` de más.
 
 ### B6. Manejo de errores en escrituras optimistas de `useCart`
 

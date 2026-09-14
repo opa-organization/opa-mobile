@@ -12,12 +12,13 @@ import { spacing } from '../../constants/spacing'
 import { useProfile } from '../../hooks/useProfile'
 import { useFollowList, FollowListType } from '../../hooks/useFollowList'
 import { FollowListRow } from '../../components/profile/FollowListRow'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { STORAGE_BASE_URL } from '../../constants/storage'
 
 export default function FollowersScreen() {
   const router = useRouter()
   const { id, type } = useLocalSearchParams<{ id: string; type?: FollowListType }>()
-  const { profile, loading: profileLoading } = useProfile(id)
+  const { profile, loading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(id)
   const [activeTab, setActiveTab] = useState<FollowListType>(type === 'following' ? 'following' : 'followers')
   const [search, setSearch] = useState('')
 
@@ -89,6 +90,8 @@ export default function FollowersScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 32 }} />
+      ) : profileError ? (
+        <ErrorState onRetry={refetchProfile} />
       ) : filteredItems.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>

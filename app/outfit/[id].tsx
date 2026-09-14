@@ -11,12 +11,14 @@ import {
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
+import { logError } from '../../lib/errorLog'
 import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
 import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
 import { Avatar } from '../../components/ui/Avatar'
+import { ErrorState } from '../../components/ui/ErrorState'
 import { Outfit, OutfitItemWithData, Garment, Brand } from '../../types'
 
 type FullOutfit = Outfit & {
@@ -30,6 +32,7 @@ export default function OutfitDetail() {
   const screenWidth = useAppWidth()
   const [outfit, setOutfit] = useState<FullOutfit | null>(null)
   const [loading, setLoading] = useState(true)
+  const [outfitError, setOutfitError] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -38,7 +41,8 @@ export default function OutfitDetail() {
 
   async function fetchOutfit(outfitId: string) {
     setLoading(true)
-    const { data } = await supabase
+    setOutfitError(false)
+    const { data, error } = await supabase
       .from('outfits')
       .select(`
         *,
@@ -47,7 +51,12 @@ export default function OutfitDetail() {
       `)
       .eq('id', outfitId)
       .maybeSingle()
-    setOutfit(data as FullOutfit | null)
+    if (error) {
+      setOutfitError(true)
+      logError('OutfitDetail.fetchOutfit', error.message)
+    } else {
+      setOutfit(data as FullOutfit | null)
+    }
     setLoading(false)
   }
 
@@ -55,6 +64,19 @@ export default function OutfitDetail() {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator color={colors.rosaOpa} style={{ flex: 1 }} />
+      </SafeAreaView>
+    )
+  }
+
+  if (outfitError) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.center}>
+          <ErrorState onRetry={() => id && fetchOutfit(id)} />
+        </View>
       </SafeAreaView>
     )
   }
