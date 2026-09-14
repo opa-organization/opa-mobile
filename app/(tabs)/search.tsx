@@ -252,7 +252,12 @@ export default function SearchScreen() {
       {/* Search bar */}
       <View style={styles.searchBarWrapper}>
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Image
+            source={{ uri: ASSETS_BASE + 'nav/search.png' }}
+            style={styles.searchIcon}
+            tintColor={colors.grisClaro}
+            contentFit="contain"
+          />
           <TextInput
             style={styles.input}
             placeholder="Outfits, prendas, marcas, usuarios..."
@@ -453,12 +458,22 @@ export default function SearchScreen() {
         <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 40 }} />
       ) : !searched ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>👗</Text>
+          <Image
+            source={{ uri: ASSETS_BASE + 'camiseta.png' }}
+            style={styles.emptyIcon}
+            tintColor={colors.grisMedio}
+            contentFit="contain"
+          />
           <Text style={styles.emptyText}>Descubrí looks por estilo, ocasión o marca</Text>
         </View>
       ) : tab === 'outfits' ? (
         outfits.length === 0 ? (
           <View style={styles.emptyState}>
+            <Image
+              source={{ uri: ASSETS_BASE + 'nothing_found.png' }}
+              style={styles.notFoundIcon}
+              contentFit="contain"
+            />
             <Text style={styles.emptyText}>Sin resultados para "{query}"</Text>
           </View>
         ) : (
@@ -490,6 +505,11 @@ export default function SearchScreen() {
       ) : tab === 'prendas' ? (
         garments.length === 0 ? (
           <View style={styles.emptyState}>
+            <Image
+              source={{ uri: ASSETS_BASE + 'nothing_found.png' }}
+              style={styles.notFoundIcon}
+              contentFit="contain"
+            />
             <Text style={styles.emptyText}>Sin resultados para "{query}"</Text>
           </View>
         ) : (
@@ -518,6 +538,11 @@ export default function SearchScreen() {
       ) : (
         accounts.length === 0 ? (
           <View style={styles.emptyState}>
+            <Image
+              source={{ uri: ASSETS_BASE + 'nothing_found.png' }}
+              style={styles.notFoundIcon}
+              contentFit="contain"
+            />
             <Text style={styles.emptyText}>Sin resultados para "{query}"</Text>
           </View>
         ) : (
@@ -575,7 +600,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: spacing.sm,
   },
-  searchIcon: { fontSize: 16 },
+  searchIcon: { width: 16, height: 16 },
   input: { flex: 1, fontSize: 15, color: colors.negro },
   clearBtn: { fontSize: 14, color: colors.grisClaro, padding: 4 },
 
@@ -712,7 +737,8 @@ const styles = StyleSheet.create({
   brandDescription: { fontSize: 12, color: colors.grisClaro, marginTop: 2 },
 
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  emptyIcon: { fontSize: 48 },
+  emptyIcon: { width: 48, height: 48 },
+  notFoundIcon: { width: 96, height: 96 },
   emptyText: { fontSize: 14, color: colors.grisClaro, textAlign: 'center', maxWidth: 240 },
 
   grid: { padding: spacing.lg, gap: spacing.sm },
