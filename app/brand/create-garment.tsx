@@ -11,6 +11,7 @@ import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
+import { GARMENT_COLORS } from '../../constants/garmentColors'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { useSizeGuidesForCategory } from '../../hooks/useSizeGuidesForCategory'
@@ -287,11 +288,24 @@ export default function CreateGarmentScreen() {
             </View>
           </Section>
 
-          {/* Color + estilo */}
+          {/* Color — paleta estandarizada (chips), reemplaza el texto libre de antes.
+              Toggle: tocar el color ya elegido lo deselecciona (color es opcional). */}
+          <Section title="COLOR">
+            <View style={styles.chipRow}>
+              {GARMENT_COLORS.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => setColor(color === c ? '' : c)}
+                  style={[styles.chip, color === c && styles.chipSelected]}
+                >
+                  <Text style={[styles.chipText, color === c && styles.chipTextSelected]}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Section>
+
+          {/* Estilo */}
           <View style={styles.card}>
-            <Field label="Color">
-              <TextInput style={styles.input} value={color} onChangeText={setColor} placeholder="Ej. camel, negro" placeholderTextColor={colors.grisMedio} />
-            </Field>
             <Field label="Estilo" last>
               <TextInput style={styles.input} value={style} onChangeText={setStyle} placeholder="Ej. street, vintage, minimal" placeholderTextColor={colors.grisMedio} />
             </Field>
