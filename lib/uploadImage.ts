@@ -27,7 +27,7 @@ function guessExtension(uri: string): string {
 // convención de naming que ya documenta database-2026-06-06-schema-and-seed.md
 // (`prendas/{marca}/{prenda}_{marca}_{coleccion}.png`) — acá "coleccion" es un
 // timestamp porque no hay concepto de colección en el formulario.
-export async function uploadGarmentImage(localUri: string, brandName: string, garmentName: string): Promise<string> {
+export async function uploadGarmentImage(localUri: string, brandName: string, garmentName: string, index?: number): Promise<string> {
   const response = await fetch(localUri)
   const blob = await response.blob()
 
@@ -35,7 +35,11 @@ export async function uploadGarmentImage(localUri: string, brandName: string, ga
   // el mimeType del propio blob (que sí viaja con el archivo elegido) es más
   // confiable que parsear la URI para decidir la extensión.
   const ext = extensionFromMime(blob.type) ?? guessExtension(localUri)
-  const path = `prendas/${slugify(brandName)}/${slugify(garmentName)}_${slugify(brandName)}_${Date.now()}.${ext}`
+  // `index` desambigua cuando se suben varias imágenes de la misma prenda en
+  // el mismo submit (el timestamp de `Date.now()` en teoría podría repetirse
+  // si dos uploads caen en el mismo milisegundo).
+  const suffix = index != null ? `_${index}` : ''
+  const path = `prendas/${slugify(brandName)}/${slugify(garmentName)}_${slugify(brandName)}_${Date.now()}${suffix}.${ext}`
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
     contentType: blob.type || `image/${ext}`,

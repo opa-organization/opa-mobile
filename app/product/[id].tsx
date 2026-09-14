@@ -24,6 +24,7 @@ import { useGarmentReviews } from '../../hooks/useGarmentReviews'
 import { useAskQuestion } from '../../hooks/useAskQuestion'
 import { useGarmentQuestions } from '../../hooks/useGarmentQuestions'
 import { useMyBrand } from '../../hooks/useMyBrand'
+import { useGarmentImages } from '../../hooks/useGarmentImages'
 import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { ZoomableImage } from '../../components/product/ZoomableImage'
@@ -48,10 +49,12 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1)
   const [sizeSheetVisible, setSizeSheetVisible] = useState(false)
   const [zoomVisible, setZoomVisible] = useState(false)
+  const [activeImage, setActiveImage] = useState(0)
   const [adding, setAdding] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [questionText, setQuestionText] = useState('')
 
+  const { images: galleryImages } = useGarmentImages(garment?.id, garment?.image_url)
   const { guide, entries, loading: guideLoading } = useSizeGuide(garment?.size_guide_id)
   const { recommendation } = useRecommendedSize(garment?.size_guide_id)
   const { saved, toggle: toggleSave, requiresAuth: saveRequiresAuth } = useSaveGarment(garment?.id)
@@ -75,6 +78,7 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (!id) return
+    setActiveImage(0)
     fetchGarment(id)
   }, [id])
 
@@ -211,14 +215,36 @@ export default function ProductDetail() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image */}
-        <TouchableOpacity activeOpacity={0.95} onPress={() => setZoomVisible(true)}>
-          <Image
-            source={{ uri: garment.image_url ?? undefined }}
-            style={[styles.image, { width: screenWidth, height: screenWidth * 1.1 }]}
-            contentFit="cover"
+        {/* Galería de imágenes */}
+        <View>
+          <FlatList
+            data={galleryImages}
+            keyExtractor={(uri, i) => `${i}-${uri}`}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / screenWidth)
+              setActiveImage(idx)
+            }}
+            renderItem={({ item }) => (
+              <TouchableOpacity activeOpacity={0.95} onPress={() => setZoomVisible(true)}>
+                <Image
+                  source={{ uri: item }}
+                  style={[styles.image, { width: screenWidth, height: screenWidth * 1.1 }]}
+                  contentFit="cover"
+                />
+              </TouchableOpacity>
+            )}
           />
-        </TouchableOpacity>
+          {galleryImages.length > 1 && (
+            <View style={styles.imageDots}>
+              {galleryImages.map((_, i) => (
+                <View key={i} style={[styles.imageDot, i === activeImage && styles.imageDotActive]} />
+              ))}
+            </View>
+          )}
+        </View>
 
         {!viewerIsBrand && (
           <TouchableOpacity
@@ -515,7 +541,7 @@ export default function ProductDetail() {
       />
 
       {/* Zoom de imagen */}
-      <ZoomableImage uri={garment.image_url} visible={zoomVisible} onClose={() => setZoomVisible(false)} />
+      <ZoomableImage uri={galleryImages[activeImage] ?? garment.image_url} visible={zoomVisible} onClose={() => setZoomVisible(false)} />
     </SafeAreaView>
   )
 }
@@ -671,6 +697,12 @@ const styles = StyleSheet.create({
   backIcon: { width: 20, height: 20 },
 
   image: { backgroundColor: colors.grisBorde },
+  imageDots: {
+    position: 'absolute', bottom: spacing.sm, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', gap: 6,
+  },
+  imageDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
+  imageDotActive: { backgroundColor: colors.blanco, width: 8, height: 8, borderRadius: 4 },
   saveFloatBtn: {
     position: 'absolute', right: spacing.md,
     width: 40, height: 40, borderRadius: 20,

@@ -1,6 +1,6 @@
 # Database — Schema & Seed Data
 
-_Última actualización: 2026-09-07_
+_Última actualización: 2026-09-14_
 
 ## Proyecto Supabase
 - **Project ID:** `vecnktrbjolahcalkbml`
@@ -49,6 +49,9 @@ _Última actualización: 2026-09-07_
 | 20260914115005 | standardize_prendas_color_palette |
 | 20260914124906 | relax_prendas_color_check_allow_custom |
 | 20260914132038 | create_notificaciones_system |
+| 20260914140212 | create_prenda_imagenes_table |
+
+> **`prenda_imagenes` (2026-09-14) — tabla nueva, galería multi-imagen por prenda.** Antes cada prenda tenía como máximo 1 foto (`prendas.image_url`, `NOT NULL`); a pedido explícito del usuario ahora se pueden cargar hasta 5 (límite de producto, no de DB) al crear/editar. Ver sección `### prenda_imagenes` más abajo para el detalle completo (columnas, RLS, backfill, cómo se sincroniza con `prendas.image_url`). Aplicada directo vía Supabase MCP (`opa-backend` no clonado esta sesión) — mismo patrón de riesgo ya documentado para otras tablas de esta lista (drift con el repo hasta que una sesión futura la sincronice).
 
 > **`admin_impersonation_log` (2026-08-03) — ya identificada (2026-08-03), no es un misterio.** Tabla de auditoría (`id`, `admin_profile_id`, `brand_id`, `brand_profile_id`, `created_at`) del feature "login como marca sin password" de `opa-admin` (ver nota completa en `CLAUDE.md` → "Login como marca sin password"). RLS habilitado sin policies públicas — solo accesible vía `service_role`, por diseño (es un log de auditoría, no algo que la app deba leer).
 
@@ -139,7 +142,7 @@ Los logos reales están en el bucket `avatars` (público). URL base:
 | name | varchar | |
 | description | text | nullable |
 | price | numeric | |
-| image_url | text | **NOT NULL** — toda prenda necesita imagen (galería multi-imagen deliberadamente fuera de alcance, ver `product-2026-06-10-brand-system.md`) |
+| image_url | text | **NOT NULL** — sigue siendo la "portada" (primera imagen) incluso ahora que existe galería multi-imagen (`prenda_imagenes`, 2026-09-14, ver sección propia más abajo) — todo lo que lee `image_url` (search, home, grillas, chips del outfit scroll) sigue funcionando sin cambios |
 | category | varchar | nullable — torso/piernas/calzado/extras |
 | color | varchar | nullable — **CHECK constraint `prendas_color_check`** (2026-09-14): paleta estandarizada de 17 valores, ver nota abajo. Antes era texto libre. |
 | style | varchar | nullable |
@@ -172,6 +175,31 @@ Paleta final de 16 vive en `constants/garmentColors.ts` (`GARMENT_COLORS`, con h
 
 **Convención de imágenes:** `prendas/{marca}/{prenda}_{marca}_{coleccion}.png`
 Ejemplo: `prendas/forma/remera_forma_verano25.png`
+
+---
+
+### `prenda_imagenes` (2026-09-14)
+| Columna | Tipo | Notas |
+|---|---|---|
+| id | uuid | PK, default `gen_random_uuid()` |
+| garment_id | uuid | FK → prendas.id, `ON DELETE CASCADE`, NOT NULL |
+| image_url | text | NOT NULL |
+| sort_order | int | NOT NULL, default 0 — orden de la galería; índice 0 = portada |
+| created_at | timestamp | default now() |
+
+Galería multi-imagen por prenda (hasta 5, límite de producto puesto en `app/brand/create-garment.tsx`, no en la DB — no hay ningún `CHECK`/trigger que lo fuerce del lado del servidor). A pedido explícito del usuario, que hasta esa sesión solo podía cargar 1 foto por prenda. `prendas.image_url` sigue existiendo y funcionando como la "portada" (siempre = la imagen con `sort_order = 0`) — decisión deliberada para no tocar ninguna de las +10 pantallas que ya leen `image_url` como string único (search, home, grillas de marca, chips del outfit scroll, etc.); esas siguen mostrando solo la portada, sin cambios. La galería completa (swipe + dots) solo se ve en `app/product/[id].tsx`.
+
+**Backfill:** al crear la tabla, se insertó 1 fila por cada una de las 28 prendas reales existentes (`garment_id = prendas.id`, `image_url = prendas.image_url`, `sort_order = 0`) — así ninguna prenda vieja queda sin fila y el hook de lectura no necesita un caso especial para "no tiene galería todavía".
+
+**RLS:** habilitado. `public_read_prenda_imagenes` (SELECT, `true` — mismo criterio que `prendas`), `brand_owner_insert_own_prenda_imagenes` e `brand_owner_delete_own_prenda_imagenes` (INSERT/DELETE, ownership resuelto vía `garment_id IN (SELECT p.id FROM prendas p JOIN marcas m ON m.id = p.brand_id WHERE m.profile_id = auth.uid())` — mismo patrón exacto que `brand_owner_update_own_prendas`). **Sin policy de UPDATE** — el flujo de guardado no actualiza filas individuales, hace reemplazo total (ver abajo).
+
+**Cómo se escribe (`app/brand/create-garment.tsx`):** al crear o editar, se sube cada imagen local nueva (`lib/uploadImage.ts` → `uploadGarmentImage`, ahora con un parámetro `index` opcional para desambiguar el nombre de archivo cuando se suben varias en el mismo submit) y se arma la lista final de URLs en el orden que el usuario las dejó. Al guardar: `DELETE FROM prenda_imagenes WHERE garment_id = :id` + `INSERT` de la lista completa con `sort_order` = posición — reemplazo total, no un diff fila por fila. Es la opción más simple dado el límite de 5 imágenes; no hay reordenar drag-and-drop, solo agregar/quitar (quitar y volver a agregar al final es el único modo de "reordenar" hoy). Va **directo a Supabase, no pasa por la API Hono** (mismo patrón ya usado para `descontinuada`/`preguntas` — `opa-backend` no está clonado esta sesión). `prendas.image_url` (el campo que sí va por la API, sin cambios en el payload) siempre se setea a la primera URL de la lista.
+
+**Cómo se resuelve el `garment_id` al crear (no al editar):** la API (`POST /api/brands/me/prendas`) no devuelve el id de la fila creada en su respuesta actual — en vez de asumir un shape sin probarlo, se resuelve con una query de vuelta por `brand_id` + `image_url` de portada (que es prácticamente único: el nombre del archivo subido incluye un timestamp en milisegundos), ordenada por `created_at desc`, límite 1. No es 100% a prueba de colisión teórica, pero el mismo margen de riesgo que ya aceptan otros lookups por nombre en el código existente.
+
+**Lectura (`hooks/useGarmentImages.ts`):** trae las filas de una prenda ordenadas por `sort_order`; si no hay ninguna (no debería pasar tras el backfill) cae a `prendas.image_url` como única imagen. Usado en `app/product/[id].tsx` para el carrusel (`FlatList` horizontal `pagingEnabled` + dots de paginación superpuestos, mismo patrón visual que le faltaba a la app — no había precedente de dots en ningún otro lado) y en el picker de `create-garment.tsx` (ahí se lee directo con una query separada porque además necesita distinguir "ya subida" vs. "elegida ahora, todavía local", algo que el hook de solo-lectura no modela).
+
+**Verificado en browser real** logueado como Capas: pantalla de crear prenda muestra "0/5 fotos" con la tile "+ Agregar foto"; modo edición sobre "Trench Camel" precarga la portada real con badge "Portada" y botón de sacarla, contador "1/5". La subida real de una segunda imagen (selector nativo multi-archivo) no se pudo ejercitar en este entorno de preview headless — no hay diálogo de OS para interactuar (mismo tipo de límite ya documentado para otros flujos de archivo/Modal); se confirmó en su lugar (1) que `expo-image-picker@17.0.11` soporta `allowsMultipleSelection`/`selectionLimit` y que su implementación web pone el atributo `multiple` en el `<input type="file">` oculto, y (2) el carrusel de lectura completo insertando una segunda fila de prueba directo en la DB sobre esa misma prenda (swipe real entre las dos fotos, dots correctos por DOM, fila de prueba borrada después). Falta la confirmación de punta a punta con una subida real de un dispositivo/browser normal.
 
 ---
 

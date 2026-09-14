@@ -32,6 +32,23 @@ const CATEGORIES = [
 const STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const CALZADO_SIZES = ['35', '36', '37', '38', '39', '40', '41', '42']
 
+const MAX_IMAGES = 5
+
+// Imagen de la prenda dentro del form: puede ser un archivo recién elegido
+// (local, todavía sin subir) o una ya subida a Storage (viene de editar una
+// prenda existente). La primera de la lista es siempre la "portada"
+// (prendas.image_url, el campo que ya usa el resto de la app).
+type PickedImage = { uri: string; local: boolean }
+
+// Moderación básica: límites de caracteres para evitar texto libre desmedido
+// (nombres/descripciones absurdamente largos, URLs rotas, etc.) antes de que
+// lleguen a la DB.
+const NAME_MAX_LENGTH = 60
+const DESCRIPTION_MAX_LENGTH = 500
+const PRICE_MAX_LENGTH = 9 // hasta $999.999.999, ya filtrado a solo dígitos
+const URL_MAX_LENGTH = 300
+const CUSTOM_OPTION_MAX_LENGTH = 30 // "Otro" en los desplegables de Color/Estilo
+
 function sizeOptionsFor(category: string | null): string[] {
   return category === 'calzado' ? CALZADO_SIZES : STANDARD_SIZES
 }
@@ -53,8 +70,7 @@ export default function CreateGarmentScreen() {
   const [sizeGuideId, setSizeGuideId] = useState<string | null>(null)
   const [saleMode, setSaleMode] = useState<'direct' | 'redirect'>('direct')
   const [externalUrl, setExternalUrl] = useState('')
-  const [localImageUri, setLocalImageUri] = useState<string | null>(null)
-  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null)
+  const [images, setImages] = useState<PickedImage[]>([])
 
   const [loadingGarment, setLoadingGarment] = useState(isEditing)
   const [saving, setSaving] = useState(false)
@@ -109,8 +125,18 @@ export default function CreateGarmentScreen() {
         setSizeGuideId(data.size_guide_id ?? null)
         setSaleMode((data.sale_mode as 'direct' | 'redirect') ?? 'direct')
         setExternalUrl(data.external_url ?? '')
-        setExistingImageUrl(data.image_url ?? null)
-        setLoadingGarment(false)
+
+        supabase
+          .from('prenda_imagenes')
+          .select('image_url')
+          .eq('garment_id', garmentId)
+          .order('sort_order', { ascending: true })
+          .then(({ data: imgRows }) => {
+            if (cancelled) return
+            const urls = (imgRows ?? []).map((r) => r.image_url as string)
+            setImages((urls.length > 0 ? urls : data.image_url ? [data.image_url] : []).map((uri) => ({ uri, local: false })))
+            setLoadingGarment(false)
+          })
       })
     return () => { cancelled = true }
   }, [garmentId, brand])
@@ -126,21 +152,30 @@ export default function CreateGarmentScreen() {
     setSizeGuideId(null)
   }, [category])
 
-  async function pickImage() {
+  async function pickImages() {
+    const remaining = MAX_IMAGES - images.length
+    if (remaining <= 0) return
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!perm.granted) {
-      setError('Necesitamos acceso a tus fotos para subir la imagen.')
+      setError('Necesitamos acceso a tus fotos para subir imágenes.')
       return
     }
+    // `allowsMultipleSelection` no es compatible con `allowsEditing` en Expo
+    // (recortar no tiene sentido eligiendo varias a la vez).
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1.1],
+      allowsMultipleSelection: remaining > 1,
+      selectionLimit: remaining,
     })
-    if (!result.canceled && result.assets[0]) {
-      setLocalImageUri(result.assets[0].uri)
+    if (!result.canceled && result.assets.length > 0) {
+      const picked = result.assets.slice(0, remaining).map((a) => ({ uri: a.uri, local: true }))
+      setImages((prev) => [...prev, ...picked])
     }
+  }
+
+  function removeImage(index: number) {
+    setImages((prev) => prev.filter((_, i) => i !== index))
   }
 
   function toggleSize(size: string) {
@@ -159,7 +194,7 @@ export default function CreateGarmentScreen() {
   }
 
   function validate(): string | null {
-    if (!localImageUri && !existingImageUrl) return 'Agregá una foto de la prenda.'
+    if (images.length === 0) return 'Agregá al menos una foto de la prenda.'
     if (!name.trim()) return 'Ponele un nombre a la prenda.'
     const priceNum = Number(price)
     if (!price || isNaN(priceNum) || priceNum <= 0) return 'El precio tiene que ser un número mayor a 0.'
@@ -183,10 +218,15 @@ export default function CreateGarmentScreen() {
     setError(null)
     setSaving(true)
     try {
-      let imageUrl: string | null = existingImageUrl
-      if (localImageUri) {
-        imageUrl = await uploadGarmentImage(localImageUri, brand.name, name.trim())
+      // Sube las imágenes nuevas (locales) en orden y arma la lista final de
+      // URLs — las que ya estaban subidas (modo edición) se dejan como están.
+      // La primera de la lista es siempre la portada (prendas.image_url).
+      const finalUrls: string[] = []
+      let localIndex = 0
+      for (const img of images) {
+        finalUrls.push(img.local ? await uploadGarmentImage(img.uri, brand.name, name.trim(), localIndex++) : img.uri)
       }
+      const imageUrl = finalUrls[0]
 
       const stockPorTalle: Record<string, number> = {}
       Object.entries(sizeStock).forEach(([size, qty]) => { stockPorTalle[size] = Number(qty) })
@@ -206,10 +246,32 @@ export default function CreateGarmentScreen() {
         external_url: saleMode === 'redirect' ? externalUrl.trim() : null,
       }
 
+      let targetId: string | undefined = garmentId
       if (isEditing) {
         await api.updateGarment(garmentId!, payload)
       } else {
         await api.createGarment(payload)
+        // La API no nos devuelve el id creado en esta llamada — lo resolvemos
+        // por brand_id + image_url de portada, que es prácticamente único
+        // (el nombre del archivo subido incluye un timestamp en milisegundos).
+        const { data: created } = await supabase
+          .from('prendas')
+          .select('id')
+          .eq('brand_id', brand.id)
+          .eq('image_url', imageUrl)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        targetId = created?.id
+      }
+
+      // Sincroniza la galería completa (`prenda_imagenes`): reemplazo total,
+      // simple y suficiente dado el límite de 5 imágenes por prenda.
+      if (targetId) {
+        await supabase.from('prenda_imagenes').delete().eq('garment_id', targetId)
+        await supabase.from('prenda_imagenes').insert(
+          finalUrls.map((url, i) => ({ garment_id: targetId, image_url: url, sort_order: i }))
+        )
       }
 
       router.back()
@@ -244,24 +306,42 @@ export default function CreateGarmentScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-          {/* Imagen */}
-          <TouchableOpacity style={styles.imagePicker} onPress={pickImage} activeOpacity={0.8}>
-            {localImageUri ? (
-              <Image source={{ uri: localImageUri }} style={styles.imagePreview} contentFit="cover" />
-            ) : existingImageUrl ? (
-              <Image source={{ uri: existingImageUrl }} style={styles.imagePreview} contentFit="cover" />
-            ) : (
-              <View style={styles.imagePlaceholder}>
+          {/* Imágenes (hasta MAX_IMAGES; la primera es la portada) */}
+          <View style={styles.imagesRow}>
+            {images.map((img, i) => (
+              <View key={`${img.uri}-${i}`} style={styles.imageThumbWrap}>
+                <Image source={{ uri: img.uri }} style={styles.imageThumb} contentFit="cover" />
+                {i === 0 && (
+                  <View style={styles.imageCoverBadge}>
+                    <Text style={styles.imageCoverBadgeText}>Portada</Text>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.imageRemoveBtn} onPress={() => removeImage(i)} hitSlop={6}>
+                  <Text style={styles.imageRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {images.length < MAX_IMAGES && (
+              <TouchableOpacity style={styles.imageAddTile} onPress={pickImages} activeOpacity={0.8}>
                 <Text style={styles.imagePlaceholderIcon}>+</Text>
                 <Text style={styles.imagePlaceholderText}>Agregar foto</Text>
-              </View>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
+          <Text style={styles.imagesHint}>{images.length}/{MAX_IMAGES} fotos — la primera es la portada</Text>
 
           {/* Info básica */}
           <View style={styles.card}>
             <Field label="Nombre">
-              <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ej. Trench Camel" placeholderTextColor={colors.grisMedio} />
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Ej. Trench Camel"
+                placeholderTextColor={colors.grisMedio}
+                maxLength={NAME_MAX_LENGTH}
+              />
+              <Text style={styles.charCounter}>{name.length}/{NAME_MAX_LENGTH}</Text>
             </Field>
             <Field label="Descripción">
               <TextInput
@@ -271,7 +351,9 @@ export default function CreateGarmentScreen() {
                 placeholder="Contá algo de la prenda"
                 placeholderTextColor={colors.grisMedio}
                 multiline
+                maxLength={DESCRIPTION_MAX_LENGTH}
               />
+              <Text style={styles.charCounter}>{description.length}/{DESCRIPTION_MAX_LENGTH}</Text>
             </Field>
             <Field label="Precio" last>
               <TextInput
@@ -281,6 +363,7 @@ export default function CreateGarmentScreen() {
                 placeholder="0"
                 placeholderTextColor={colors.grisMedio}
                 keyboardType="number-pad"
+                maxLength={PRICE_MAX_LENGTH}
               />
             </Field>
           </View>
@@ -400,15 +483,19 @@ export default function CreateGarmentScreen() {
               </TouchableOpacity>
             </View>
             {saleMode === 'redirect' && (
-              <TextInput
-                style={[styles.input, styles.urlInput]}
-                value={externalUrl}
-                onChangeText={setExternalUrl}
-                placeholder="https://mitienda.com/producto"
-                placeholderTextColor={colors.grisMedio}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
+              <View>
+                <TextInput
+                  style={[styles.input, styles.urlInput]}
+                  value={externalUrl}
+                  onChangeText={setExternalUrl}
+                  placeholder="https://mitienda.com/producto"
+                  placeholderTextColor={colors.grisMedio}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  maxLength={URL_MAX_LENGTH}
+                />
+                <Text style={styles.charCounter}>{externalUrl.length}/{URL_MAX_LENGTH}</Text>
+              </View>
             )}
           </Section>
 
@@ -521,7 +608,9 @@ function DropdownField({
                 placeholder={`Escribí tu propio ${title.toLowerCase()}`}
                 placeholderTextColor={colors.grisMedio}
                 autoFocus
+                maxLength={CUSTOM_OPTION_MAX_LENGTH}
               />
+              <Text style={styles.charCounter}>{draft.length}/{CUSTOM_OPTION_MAX_LENGTH}</Text>
               <View style={styles.otherActions}>
                 <TouchableOpacity onPress={() => setOtherMode(false)}>
                   <Text style={styles.otherBack}>‹ Volver a la lista</Text>
@@ -566,14 +655,28 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
 
-  imagePicker: {
-    width: 160, height: 176, borderRadius: radius.card, overflow: 'hidden',
-    alignSelf: 'center', marginBottom: spacing.lg, backgroundColor: colors.grisBorde,
+  imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' },
+  imagesHint: { fontSize: 11, color: colors.grisClaro, textAlign: 'center', marginTop: spacing.xs, marginBottom: spacing.lg },
+  imageThumbWrap: {
+    width: 104, height: 116, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.grisBorde,
   },
-  imagePreview: { width: '100%', height: '100%' },
-  imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  imageThumb: { width: '100%', height: '100%' },
+  imageAddTile: {
+    width: 104, height: 116, borderRadius: radius.card, backgroundColor: colors.grisBorde,
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
   imagePlaceholderIcon: { fontSize: 32, color: colors.grisClaro, fontWeight: '300' },
   imagePlaceholderText: { fontSize: 12, color: colors.grisClaro },
+  imageCoverBadge: {
+    position: 'absolute', bottom: 6, left: 6, backgroundColor: colors.rosaOpa,
+    borderRadius: radius.tag, paddingHorizontal: 6, paddingVertical: 2,
+  },
+  imageCoverBadgeText: { fontSize: 9, fontWeight: '700', color: colors.blanco },
+  imageRemoveBtn: {
+    position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center',
+  },
+  imageRemoveText: { fontSize: 11, color: colors.blanco, fontWeight: '700' },
 
   card: {
     backgroundColor: colors.grisBorde,
@@ -584,6 +687,7 @@ const styles = StyleSheet.create({
   field: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.grisMedio },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: colors.grisOscuro, marginBottom: 4 },
   input: { fontSize: 15, color: colors.negro, padding: 0 },
+  charCounter: { fontSize: 11, color: colors.grisMedio, textAlign: 'right', marginTop: 4 },
   inputMultiline: { minHeight: 60, textAlignVertical: 'top' },
   urlInput: { marginTop: spacing.sm, backgroundColor: colors.grisBorde, borderRadius: radius.chip, padding: spacing.md },
 

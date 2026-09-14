@@ -132,7 +132,7 @@ OPA lives across four repositories:
 - [ ] Dark mode — not planned for Demo 1; track here for future
 - [ ] Micro-interactions in bottom tab bar — subtle bounce or scale on tab press
 - [ ] Outfit detail screen design — interactive floating labels, garment grid, CTA layout
-- [x] Product detail screen design — ✅ done 2026-08-10, full "Shein-style" redesign, see `frontend-2026-06-06-screens-and-components.md` → "Product Detail". Image gallery deliberately scoped out (single `image_url` per prenda in DB, user decided not to change schema for this)
+- [x] Product detail screen design — ✅ done 2026-08-10, full "Shein-style" redesign, see `frontend-2026-06-06-screens-and-components.md` → "Product Detail". Image gallery was scoped out then; ✅ built 2026-09-14 (`prenda_imagenes`, up to 5 images per prenda, swipe + dots in Product Detail, multi-upload in Create Garment) — see `database-2026-06-06-schema-and-seed.md` → `prenda_imagenes` and `frontend-2026-06-06-screens-and-components.md` → "Product Detail"/"Create Garment"
 - [ ] Measurements input screen design — numeric input layout, body diagram reference illustration
 
 ---
