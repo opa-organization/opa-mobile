@@ -15,6 +15,27 @@ App mobile de descubrimiento de moda centrada en outfits como unidad principal d
 | Backend | Supabase (Project ID: `vecnktrbjolahcalkbml`) |
 | Lenguaje | TypeScript |
 
+## TP 10 — React Hook Form (Proyecto Final)
+
+El formulario utilizado para este TP es el de **registro de usuario**, componente [`AuthScreen`](app/auth/index.tsx) (mismo componente que maneja login, en el modo "Registrate"). Se adaptó a React Hook Form sin agregar campos nuevos (usuario, nombre, email, contraseña) más un checkbox de términos y condiciones que no existía.
+
+**Cómo está organizado** (separación de responsabilidades + comunicación entre componentes):
+
+| Componente/hook | Responsabilidad |
+|---|---|
+| [`app/auth/index.tsx`](app/auth/index.tsx) (`AuthScreen`) | Componente **contenedor/padre**. Administra el formulario con `useForm` (`control`, `handleSubmit`, `formState.errors`, `reset`, `setError`) y decide qué hacer con los datos ya validados: llama a `useRegistration()` y navega si el resultado es exitoso. |
+| [`components/auth/AuthFormFields.tsx`](components/auth/AuthFormFields.tsx) | Componente **hijo, presentacional**. Recibe `control`/`errors`/`mode` como props y renderiza los inputs vía `Controller` de React Hook Form — no tiene ningún `useState` propio para los datos del formulario, así que no duplica el estado que ya administra el padre. |
+| [`hooks/useRegistration.ts`](hooks/useRegistration.ts) | Lógica de **backend** (Supabase `signInWithPassword`/`signUp`), sin tocar — se sigue llamando recién después de que React Hook Form aprobó las validaciones del lado del cliente. |
+
+**Validaciones implementadas con React Hook Form** (todas se ejecutan antes de llamar a Supabase):
+
+- Email: obligatorio + formato válido (regex)
+- Usuario: obligatorio + mínimo 3 caracteres + caracteres permitidos (regex) — solo aplica en modo registro
+- Contraseña: obligatoria + mínimo 8 caracteres (el mínimo de 8 solo se exige al registrarse, no al loguearse, para no romper cuentas seed ya existentes con passwords más cortas)
+- Términos y condiciones: checkbox obligatorio (`validate`) — solo en modo registro
+
+Los errores de backend que ya existían (usuario/email duplicado, credenciales incorrectas) se siguen mostrando igual, pero ahora vía `setError()` de React Hook Form en vez de `useState` manual.
+
 ## Setup
 
 ### 1. Clonar e instalar

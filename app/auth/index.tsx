@@ -1,158 +1,90 @@
 import React, { useState } from 'react'
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator,
   ScrollView,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
-import { supabase } from '../../lib/supabase'
+import { useForm } from 'react-hook-form'
 import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
+import { useRegistration } from '../../hooks/useRegistration'
+import AuthFormFields from '../../components/auth/AuthFormFields'
+import { AuthFormValues } from '../../components/auth/authFormTypes'
 
 type Mode = 'login' | 'signup'
 
-const USERNAME_REGEX = /^[a-z0-9._]+$/
+const DEFAULT_VALUES: AuthFormValues = {
+  email: '',
+  password: '',
+  username: '',
+  displayName: '',
+  acceptTerms: false,
+}
 
+// Componente contenedor (TP 10): administra el estado del formulario con
+// React Hook Form (useForm/handleSubmit/formState/errors) y la lógica de
+// registro/login con el hook useRegistration (que a su vez habla con
+// Supabase). AuthFormFields, más abajo, es el hijo puramente presentacional
+// que recibe `control`/`errors` como props y no duplica los datos con
+// useState propio.
 export default function AuthScreen() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('login')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [generalError, setGeneralError] = useState<string | null>(null)
+  const { login, signup, loading } = useRegistration()
 
-  // Field-level errors
-  const [usernameError, setUsernameError] = useState<string | null>(null)
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [loginError, setLoginError] = useState<string | null>(null)
-
-  // ── Derived state ──────────────────────────────────────────────────────────
-  const signupBlocked = !!(usernameError || emailError || passwordError)
-  const loginBlocked = !!loginError
-
-  // ── Username validation on change ──────────────────────────────────────────
-  function handleUsernameChange(value: string) {
-    setUsername(value)
-    if (!value) { setUsernameError(null); return }
-    const clean = value.toLowerCase()
-    if (!USERNAME_REGEX.test(clean)) {
-      setUsernameError('Solo se permiten letras, números, puntos y guiones bajos')
-    } else {
-      setUsernameError(null)
-    }
-  }
-
-  // ── Clear password error on change ────────────────────────────────────────
-  function handlePasswordChange(value: string) {
-    setPassword(value)
-    if (passwordError) setPasswordError(null)
-  }
-
-  // ── Clear login error as soon as user edits either field ───────────────────
-  function handleLoginEmailChange(value: string) {
-    setEmail(value)
-    if (loginError) setLoginError(null)
-  }
-
-  function handleLoginPasswordChange(value: string) {
-    setPassword(value)
-    if (loginError) setLoginError(null)
-  }
-
-  // ── Login ──────────────────────────────────────────────────────────────────
-  async function handleLogin() {
-    if (!email || !password) {
-      setLoginError('Completá el email y la contraseña')
-      return
-    }
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) {
-      setLoginError('El email o la contraseña son incorrectos')
-    } else {
-      router.replace('/(tabs)')
-    }
-  }
-
-  // ── Signup ─────────────────────────────────────────────────────────────────
-  async function handleSignup() {
-    // Re-validate before submit
-    let hasError = false
-    const cleanUsername = username.toLowerCase()
-    if (!cleanUsername || !USERNAME_REGEX.test(cleanUsername)) {
-      setUsernameError('Solo se permiten letras, números, puntos y guiones bajos')
-      hasError = true
-    }
-    if (!email) {
-      setEmailError('Ingresá un email válido')
-      hasError = true
-    }
-    if (hasError || signupBlocked) return
-
-    if (password.length < 6) {
-      setPasswordError('La contraseña debe tener al menos 6 caracteres')
-      return
-    }
-
-    setLoading(true)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username: cleanUsername,
-          display_name: displayName || cleanUsername,
-        },
-      },
-    })
-    setLoading(false)
-
-    if (error) {
-      const msg = error.message.toLowerCase()
-      if (msg.includes('already registered') || msg.includes('email') || msg.includes('unique')) {
-        setEmailError('Ya existe una cuenta con ese mismo mail')
-      } else if (msg.includes('username') || msg.includes('usuario')) {
-        setUsernameError('Ya existe una cuenta con ese mismo usuario')
-      } else {
-        setEmailError(error.message)
-      }
-    } else if (!data.session) {
-      // Check if the username already exists in perfiles
-      const { data: existing } = await supabase
-        .from('perfiles')
-        .select('id')
-        .eq('username', cleanUsername)
-        .maybeSingle()
-
-      if (existing) {
-        setUsernameError('Ya existe una cuenta con ese mismo usuario')
-        return
-      }
-
-      router.replace('/(tabs)')
-    } else {
-      router.replace('/(tabs)')
-    }
-  }
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setError,
+  } = useForm<AuthFormValues>({
+    mode: 'onChange',
+    defaultValues: DEFAULT_VALUES,
+  })
 
   // ── Switch mode ────────────────────────────────────────────────────────────
   function switchMode(next: Mode) {
     setMode(next)
-    setUsernameError(null)
-    setEmailError(null)
-    setPasswordError(null)
-    setLoginError(null)
-    setEmail('')
-    setPassword('')
-    setUsername('')
-    setDisplayName('')
+    setGeneralError(null)
+    reset(DEFAULT_VALUES)
   }
+
+  // ── Submit (login o signup, ya validado por React Hook Form) ───────────────
+  const onSubmit = handleSubmit(async (values) => {
+    setGeneralError(null)
+
+    if (mode === 'login') {
+      const err = await login(values.email, values.password)
+      if (err) {
+        setGeneralError(err.message)
+        return
+      }
+      router.replace('/(tabs)')
+      return
+    }
+
+    const err = await signup({
+      email: values.email,
+      password: values.password,
+      username: values.username,
+      displayName: values.displayName,
+    })
+    if (err) {
+      if (err.field === 'general') {
+        setGeneralError(err.message)
+      } else {
+        setError(err.field, { type: 'server', message: err.message })
+      }
+      return
+    }
+    router.replace('/(tabs)')
+  })
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -199,69 +131,21 @@ export default function AuthScreen() {
 
           {/* Form */}
           <View style={styles.form}>
-            {mode === 'signup' && (
-              <>
-                <Text style={styles.label}>Usuario</Text>
-                <TextInput
-                  style={[styles.input, !!usernameError && styles.inputError]}
-                  placeholder="tu_usuario"
-                  placeholderTextColor={colors.grisMedio}
-                  value={username}
-                  onChangeText={handleUsernameChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {usernameError && <Text style={styles.fieldError}>{usernameError}</Text>}
+            <AuthFormFields control={control} errors={errors} mode={mode} />
 
-                <Text style={styles.label}>Nombre</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Tu nombre (opcional)"
-                  placeholderTextColor={colors.grisMedio}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                />
-              </>
-            )}
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, !!emailError && styles.inputError]}
-              placeholder="tu@email.com"
-              placeholderTextColor={colors.grisMedio}
-              value={email}
-              onChangeText={mode === 'login' ? handleLoginEmailChange : (v) => { setEmail(v); if (emailError) setEmailError(null) }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {mode === 'signup' && emailError && <Text style={styles.fieldError}>{emailError}</Text>}
-
-            <Text style={styles.label}>Contraseña</Text>
-            <TextInput
-              style={[styles.input, !!passwordError && styles.inputError]}
-              placeholder={mode === 'signup' ? 'Mínimo 6 caracteres' : '••••••••'}
-              placeholderTextColor={colors.grisMedio}
-              value={password}
-              onChangeText={mode === 'login' ? handleLoginPasswordChange : handlePasswordChange}
-              secureTextEntry
-            />
-            {mode === 'signup' && passwordError && <Text style={styles.fieldError}>{passwordError}</Text>}
-
-            {/* Login error banner */}
-            {mode === 'login' && loginError && (
+            {generalError && (
               <View style={styles.loginErrorBanner}>
-                <Text style={styles.loginErrorText}>{loginError}</Text>
+                <Text style={styles.loginErrorText}>{generalError}</Text>
               </View>
             )}
 
             <TouchableOpacity
               style={[
                 styles.primaryBtn,
-                (loading || (mode === 'login' ? loginBlocked : signupBlocked)) && styles.primaryBtnDisabled,
+                (loading || Object.keys(errors).length > 0) && styles.primaryBtnDisabled,
               ]}
-              onPress={mode === 'login' ? handleLogin : handleSignup}
-              disabled={loading || (mode === 'login' ? loginBlocked : signupBlocked)}
+              onPress={onSubmit}
+              disabled={loading || Object.keys(errors).length > 0}
               activeOpacity={0.85}
             >
               {loading
@@ -338,34 +222,6 @@ const styles = StyleSheet.create({
   },
   modeTabTextActive: { color: colors.negro },
   form: { gap: spacing.xs },
-  label: {
-    fontSize: 12,
-    color: colors.grisOscuro,
-    fontFamily: fonts.mergeOne,
-    marginTop: spacing.md,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.grisBorde,
-    borderRadius: radius.button,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.negro,
-    backgroundColor: colors.blanco,
-  },
-  inputError: {
-    borderColor: '#E53935',
-  },
-  fieldError: {
-    fontSize: 12,
-    color: '#E53935',
-    marginTop: 2,
-    marginLeft: 4,
-  },
   loginErrorBanner: {
     backgroundColor: 'rgba(229, 57, 53, 0.08)',
     borderRadius: radius.button,
