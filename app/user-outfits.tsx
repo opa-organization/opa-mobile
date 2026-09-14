@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   View, FlatList, StyleSheet, useWindowDimensions,
-  TouchableOpacity, Text, StatusBar, ActivityIndicator,
+  TouchableOpacity, Text, StatusBar, ActivityIndicator, ViewToken,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useOutfits } from '../hooks/useOutfits'
@@ -17,7 +17,7 @@ export default function UserOutfitsScreen() {
   const flatListRef = useRef<FlatList>(null)
   const didScrollRef = useRef(false)
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0)
   })
 

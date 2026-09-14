@@ -294,6 +294,7 @@ Los documentos de referencia viven en `.claude/documents/`:
 | `design-2026-06-06-visual-system.md` | Sistema visual |
 | `product-2026-06-10-brand-system.md` | Modelo de marcas: onboarding, verificación, monetización |
 | `meta-2026-06-10-pending-features.md` | **Fuente de verdad de pendientes** — actualizar cuando se implementa algo |
+| `meta-2026-09-14-code-audit.md` | Auditoría de malas prácticas/organización sobre `main`, dividida en "respuesta única" (ya resuelto) vs. "requiere tu decisión" (9 ítems pendientes de confirmación) |
 | `_archive/` | Documentos obsoletos del modelo multi-chat anterior — solo referencia histórica, no seguir sus instrucciones |
 
 **Regla:** cuando se completa un pendiente, eliminarlo de `pending-features.md` y marcarlo como hecho en el documento de la capa correspondiente. Al terminar una sesión, si hiciste un cambio relevante, actualizá el doc correspondiente y este `CLAUDE.md` antes de irte — la próxima sesión no va a tener otra forma de saberlo.

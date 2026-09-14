@@ -45,7 +45,7 @@ export function ZoomableImage({ uri, visible, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={handleClose}>
+        <TouchableWithoutFeedback onPress={handleClose} accessibilityLabel="Cerrar" accessibilityRole="button">
           <View style={styles.closeBtn}>
             <Text style={styles.closeText}>✕</Text>
           </View>

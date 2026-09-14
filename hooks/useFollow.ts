@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/useAuthStore'
 
 export function useFollow(targetUserId: string) {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [following, setFollowing] = useState(false)
   const [loading, setLoading] = useState(false)
 

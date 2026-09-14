@@ -14,7 +14,7 @@ export interface CartRow {
 // Carrito muy básico y temporal: no hay checkout todavía (ver app/cart.tsx),
 // esto solo permite agregar/editar/sacar items de `productos_carrito`.
 export function useCart() {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const userId = session?.user.id
   const [items, setItems] = useState<CartRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,22 +34,27 @@ export function useCart() {
   useEffect(() => { refetch() }, [refetch])
 
   const addItem = useCallback(async (garmentId: string, size: string | null, quantity: number) => {
-    if (!userId) return false
-    const existingQuery = supabase
-      .from('productos_carrito')
-      .select('id, quantity')
-      .eq('user_id', userId)
-      .eq('garment_id', garmentId)
-    const { data: existing } = await (size == null ? existingQuery.is('size', null) : existingQuery.eq('size', size)).maybeSingle()
+    if (!userId || loading) return false
+    setLoading(true)
+    try {
+      const existingQuery = supabase
+        .from('productos_carrito')
+        .select('id, quantity')
+        .eq('user_id', userId)
+        .eq('garment_id', garmentId)
+      const { data: existing } = await (size == null ? existingQuery.is('size', null) : existingQuery.eq('size', size)).maybeSingle()
 
-    if (existing) {
-      await supabase.from('productos_carrito').update({ quantity: existing.quantity + quantity }).eq('id', existing.id)
-    } else {
-      await supabase.from('productos_carrito').insert({ user_id: userId, garment_id: garmentId, size, quantity })
+      if (existing) {
+        await supabase.from('productos_carrito').update({ quantity: existing.quantity + quantity }).eq('id', existing.id)
+      } else {
+        await supabase.from('productos_carrito').insert({ user_id: userId, garment_id: garmentId, size, quantity })
+      }
+      await refetch()
+      return true
+    } finally {
+      setLoading(false)
     }
-    await refetch()
-    return true
-  }, [userId, refetch])
+  }, [userId, loading, refetch])
 
   async function updateQuantity(id: string, quantity: number) {
     if (quantity <= 0) return removeItem(id)

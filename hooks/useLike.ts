@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { useAuthStore } from '../store/useAuthStore'
 
 export function useLike(outfitId: string, initialCount: number) {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [liked, setLiked] = useState(false)
   const [count, setCount] = useState(initialCount)
   const [loading, setLoading] = useState(false)

@@ -12,6 +12,7 @@ import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { GARMENT_COLORS, GARMENT_COLOR_HEX } from '../../constants/garmentColors'
+import { GARMENT_CATEGORIES as CATEGORIES } from '../../constants/garmentCategories'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { useSizeGuidesForCategory } from '../../hooks/useSizeGuidesForCategory'
@@ -19,15 +20,7 @@ import { uploadGarmentImage } from '../../lib/uploadImage'
 import { supabase } from '../../lib/supabase'
 import { api } from '../../lib/api'
 import { dedupeCaseInsensitive } from '../../lib/text'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
-
-const CATEGORIES = [
-  { key: 'torso', label: 'Torso' },
-  { key: 'piernas', label: 'Piernas' },
-  { key: 'calzado', label: 'Calzado' },
-  { key: 'extras', label: 'Extras' },
-] as const
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
 const STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const CALZADO_SIZES = ['35', '36', '37', '38', '39', '40', '41', '42']
@@ -57,7 +50,7 @@ export default function CreateGarmentScreen() {
   const router = useRouter()
   const { id: garmentId } = useLocalSearchParams<{ id?: string }>()
   const isEditing = !!garmentId
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const { brand } = useMyBrand(session?.user.id)
 
   const [name, setName] = useState('')

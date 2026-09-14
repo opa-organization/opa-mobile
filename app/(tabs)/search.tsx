@@ -8,7 +8,6 @@ import {
   FlatList,
   ActivityIndicator,
   StatusBar,
-  Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -19,10 +18,12 @@ import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
 import { GARMENT_COLORS } from '../../constants/garmentColors'
+import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
 import { dedupeCaseInsensitive } from '../../lib/text'
 import { Outfit, Garment, Brand, Profile } from '../../types'
+import { STORAGE_BASE_URL } from '../../constants/storage'
 
-const ASSETS_BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+const ASSETS_BASE = `${STORAGE_BASE_URL}/`
 
 type SearchTab = 'outfits' | 'prendas' | 'marcas'
 
@@ -39,17 +40,14 @@ type AccountResult =
   | ({ kind: 'marca' } & Brand)
   | ({ kind: 'usuario' } & Profile)
 
-// Categorías reales de prenda (mismo enum que `prendas.category` / outfit_items.slot,
-// ya usado en wardrobe.tsx) — a diferencia de los tags de estilo/ocasión de abajo,
-// estos son un vocabulario controlado: siempre van a devolver resultados si existen.
-// 'todo' no es una categoría real de la DB: es un chip explícito para ver las 4
-// categorías mezcladas (sin filtro de category), va primero en la fila a propósito.
-const CATEGORY_TAGS = [
+// Categorías reales de prenda (mismo enum compartido en constants/garmentCategories.ts)
+// — a diferencia de los tags de estilo/ocasión de abajo, estos son un vocabulario
+// controlado: siempre van a devolver resultados si existen. 'todo' no es una
+// categoría real de la DB: es un chip explícito para ver las 4 categorías
+// mezcladas (sin filtro de category), va primero en la fila a propósito.
+const CATEGORY_TAGS: { key: string; label: string }[] = [
   { key: 'todo', label: 'Todo' },
-  { key: 'torso', label: 'Torso' },
-  { key: 'piernas', label: 'Piernas' },
-  { key: 'calzado', label: 'Calzado' },
-  { key: 'extras', label: 'Extras' },
+  ...GARMENT_CATEGORIES,
 ]
 
 type OutfitSort = 'popular' | 'recientes'

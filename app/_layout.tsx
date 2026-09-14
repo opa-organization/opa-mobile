@@ -17,7 +17,9 @@ export default function RootLayout() {
     MergeOne_400Regular: require('../assets/fonts/MergeOne-Regular.ttf'),
   })
 
-  const { setSession, setProfile, setInitialized } = useAuthStore()
+  const setSession = useAuthStore((s) => s.setSession)
+  const setProfile = useAuthStore((s) => s.setProfile)
+  const setInitialized = useAuthStore((s) => s.setInitialized)
 
   useEffect(() => {
     // Load initial session

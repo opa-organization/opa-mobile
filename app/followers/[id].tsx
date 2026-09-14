@@ -12,8 +12,7 @@ import { spacing } from '../../constants/spacing'
 import { useProfile } from '../../hooks/useProfile'
 import { useFollowList, FollowListType } from '../../hooks/useFollowList'
 import { FollowListRow } from '../../components/profile/FollowListRow'
-
-const BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+import { STORAGE_BASE_URL } from '../../constants/storage'
 
 export default function FollowersScreen() {
   const router = useRouter()
@@ -48,7 +47,7 @@ export default function FollowersScreen() {
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
-          <Image source={{ uri: BASE + 'flecha.png' }} style={styles.backIcon} contentFit="contain" />
+          <Image source={{ uri: `${STORAGE_BASE_URL}/flecha.png` }} style={styles.backIcon} contentFit="contain" />
         </TouchableOpacity>
         <Text style={styles.topBarTitle} numberOfLines={1}>
           {profile?.username ? `@${profile.username}` : ''}

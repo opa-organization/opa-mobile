@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocalSearchParams, useRouter, Link } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -16,6 +15,8 @@ import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
+import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
+import { Avatar } from '../../components/ui/Avatar'
 import { Outfit, OutfitItemWithData, Garment, Brand } from '../../types'
 
 type FullOutfit = Outfit & {
@@ -99,13 +100,16 @@ export default function OutfitDetail() {
           {/* Creator */}
           {outfit.creator && (
             <TouchableOpacity style={styles.creatorRow} onPress={() => router.push(`/user/${outfit.creator!.id}`)}>
-              {outfit.creator.avatar_url ? (
-                <Image source={{ uri: outfit.creator.avatar_url }} style={styles.avatar} contentFit="cover" />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Text style={styles.avatarInitial}>{outfit.creator.username[0]?.toUpperCase()}</Text>
-                </View>
-              )}
+              <Avatar
+                uri={outfit.creator.avatar_url}
+                label={outfit.creator.username}
+                size={32}
+                style={styles.avatar}
+                fallbackBackgroundColor={colors.grisBorde}
+                fallbackTextColor={colors.grisClaro}
+                fallbackFontSize={13}
+                fallbackFontWeight="700"
+              />
               <Text style={styles.creatorUsername}>@{outfit.creator.username}</Text>
             </TouchableOpacity>
           )}
@@ -136,7 +140,7 @@ export default function OutfitDetail() {
           {/* Slot labels */}
           {garments.length > 0 && (
             <View style={styles.slotGrid}>
-              {SLOTS.map((slot) => {
+              {GARMENT_CATEGORIES.map((slot) => {
                 const slotItems = garments.filter((g) => g.slot === slot.key)
                 if (slotItems.length === 0) return null
                 return (
@@ -196,15 +200,8 @@ function GarmentRow({ item, onPress }: { item: OutfitItemWithData & { garment: G
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SLOTS = [
-  { key: 'torso', label: 'Torso' },
-  { key: 'piernas', label: 'Piernas' },
-  { key: 'calzado', label: 'Calzado' },
-  { key: 'extras', label: 'Extras' },
-]
-
 function slotLabel(slot: string) {
-  return SLOTS.find((s) => s.key === slot)?.label ?? slot
+  return GARMENT_CATEGORIES.find((s) => s.key === slot)?.label ?? slot
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -231,9 +228,7 @@ const styles = StyleSheet.create({
   body: { padding: spacing.lg },
 
   creatorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
-  avatar: { width: 32, height: 32, borderRadius: radius.avatar, marginRight: spacing.sm, backgroundColor: colors.grisBorde },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 13, fontWeight: '700', color: colors.grisClaro },
+  avatar: { marginRight: spacing.sm },
   creatorUsername: { fontSize: 13, color: colors.grisOscuro, fontWeight: '600' },
 
   outfitTitle: { fontSize: 22, fontWeight: '800', color: colors.negro, marginBottom: spacing.sm },

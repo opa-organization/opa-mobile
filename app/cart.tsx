@@ -8,8 +8,7 @@ import { fonts } from '../constants/fonts'
 import { spacing } from '../constants/spacing'
 import { radius } from '../constants/radius'
 import { useCart, CartRow } from '../hooks/useCart'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 
 // Vista de carrito muy básica y temporal: permite ver/editar/sacar items de
 // `productos_carrito`. No hay checkout todavía — eso es un pendiente aparte.

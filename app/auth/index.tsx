@@ -11,6 +11,7 @@ import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
+import { STORAGE_BASE_URL } from '../../constants/storage'
 
 type Mode = 'login' | 'signup'
 
@@ -169,7 +170,7 @@ export default function AuthScreen() {
           </TouchableOpacity>
 
           <Image
-            source={{ uri: 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/logoOPA-transparente.png' }}
+            source={{ uri: `${STORAGE_BASE_URL}/logoOPA-transparente.png` }}
             style={styles.logo}
             contentFit="contain"
           />

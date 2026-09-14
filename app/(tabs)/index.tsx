@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, ActivityIndicator, Animated, Dimensions, FlatList,
+  StatusBar, ActivityIndicator, Animated, FlatList,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
@@ -20,11 +20,11 @@ import { useNotifications } from '../../hooks/useNotifications'
 import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { SectionHeader } from '../../components/home/SectionHeader'
+import { Avatar } from '../../components/ui/Avatar'
 import { Brand, Garment, Outfit } from '../../types'
 
 import { useAppWidth } from '../../constants/layout'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
 // Carousel config
 const CARD_W = 220
@@ -273,13 +273,15 @@ function BrandHomeView() {
           />
           <View style={styles.headerRight}>
             <NotificationBell />
-            <View style={styles.brandAvatarWrap}>
-              {brand.logo_url ? (
-                <Image source={{ uri: brand.logo_url }} style={styles.brandAvatar} contentFit="cover" />
-              ) : (
-                <Text style={styles.brandAvatarInitial}>{brand.name[0]?.toUpperCase() ?? '?'}</Text>
-              )}
-            </View>
+            <Avatar
+              uri={brand.logo_url}
+              label={brand.name}
+              size={34}
+              fallbackBackgroundColor={colors.grisBorde}
+              fallbackTextColor={colors.rosaOpa}
+              fallbackFontSize={15}
+              fallbackFontFamily={fonts.mergeOne}
+            />
           </View>
         </View>
         <View style={styles.greeting}>
@@ -594,14 +596,6 @@ const styles = StyleSheet.create({
   },
 
   // ── Brand Home ──────────────────────────────────────────────────────────
-  brandAvatarWrap: {
-    width: 34, height: 34, borderRadius: 9999,
-    backgroundColor: colors.grisBorde,
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  brandAvatar: { width: '100%', height: '100%' },
-  brandAvatarInitial: { fontSize: 15, fontFamily: fonts.mergeOne, color: colors.rosaOpa },
 
   greeting: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xs },
   greetingTitle: { fontSize: 19, fontWeight: '700', color: colors.negro },

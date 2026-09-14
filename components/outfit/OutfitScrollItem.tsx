@@ -8,15 +8,13 @@ import { Outfit } from '../../types'
 import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { radius } from '../../constants/radius'
-import { spacing } from '../../constants/spacing'
 import { useLike } from '../../hooks/useLike'
 import { useSave } from '../../hooks/useSave'
 import { useFollow } from '../../hooks/useFollow'
 import { useAuthStore } from '../../store/useAuthStore'
 
 import { useAppWidth } from '../../constants/layout'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
 const CHIP_W = 118
 const CHIP_H = 46
@@ -45,7 +43,8 @@ export function OutfitScrollItem({ outfit, isActive, height }: Props) {
   const { height: windowH } = useWindowDimensions()
   const resolvedHeight = height ?? windowH
   const SW = useAppWidth()
-  const { session, profile } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const profile = useAuthStore((s) => s.profile)
   // Las cuentas de marca no pueden like/save/follow — son cuentas de contenido/venta.
   const viewerIsBrand = !!profile?.is_brand
   const { liked, toggle: toggleLike } = useLike(outfit.id, outfit.likes_count)
@@ -123,15 +122,29 @@ export function OutfitScrollItem({ outfit, isActive, height }: Props) {
         <View style={[styles.actions, { top: resolvedHeight * 0.4 }]}>
           {!viewerIsBrand && (
             <>
-              <TouchableOpacity onPress={toggleLike} style={styles.actionBtn}>
+              <TouchableOpacity
+                onPress={toggleLike}
+                style={styles.actionBtn}
+                accessibilityLabel="Me gusta"
+                accessibilityRole="button"
+              >
                 <Text style={[styles.actionIcon, liked && styles.actionIconLiked]}>{liked ? '♥' : '♡'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={toggleSave} style={styles.actionBtn}>
+              <TouchableOpacity
+                onPress={toggleSave}
+                style={styles.actionBtn}
+                accessibilityLabel="Guardar"
+                accessibilityRole="button"
+              >
                 <Text style={[styles.actionIcon, saved && styles.actionIconLiked]}>{saved ? '★' : '☆'}</Text>
               </TouchableOpacity>
             </>
           )}
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            accessibilityLabel="Compartir"
+            accessibilityRole="button"
+          >
             <Image
               source={{ uri: `${STORAGE}/compartir.png` }}
               style={styles.shareIcon}

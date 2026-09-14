@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   View, FlatList, StyleSheet, useWindowDimensions,
-  TouchableOpacity, Text, StatusBar, ActivityIndicator,
+  TouchableOpacity, Text, StatusBar, ActivityIndicator, ViewToken,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSavedOutfits } from '../hooks/useSavedOutfits'
@@ -13,13 +13,13 @@ export default function SavedOutfitsScreen() {
   const router = useRouter()
   const { startIndex } = useLocalSearchParams<{ startIndex?: string }>()
   const { height: SH } = useWindowDimensions()
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const { outfits, loading } = useSavedOutfits(session?.user.id)
   const [activeIndex, setActiveIndex] = useState(0)
   const flatListRef = useRef<FlatList>(null)
   const didScrollRef = useRef(false)
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0)
   })
 

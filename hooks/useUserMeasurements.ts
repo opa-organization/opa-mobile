@@ -4,7 +4,7 @@ import { UserMeasurements } from '../types'
 import { useAuthStore } from '../store/useAuthStore'
 
 export function useUserMeasurements() {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [measurements, setMeasurements] = useState<UserMeasurements | null>(null)
   const [loading, setLoading] = useState(true)
 

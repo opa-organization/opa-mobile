@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-  StatusBar, ScrollView, FlatList, ActivityIndicator, Dimensions,
+  StatusBar, ScrollView, FlatList, ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useRouter, Redirect } from 'expo-router'
@@ -15,8 +15,10 @@ import { useSavedOutfits } from '../../hooks/useSavedOutfits'
 import { useSavedGarments } from '../../hooks/useSavedGarments'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
+import { STORAGE_BASE_URL } from '../../constants/storage'
+import { Avatar } from '../../components/ui/Avatar'
 
-const BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+const BASE = `${STORAGE_BASE_URL}/`
 
 // Main tabs
 const MAIN_TABS = [
@@ -43,7 +45,9 @@ export default function ProfileScreen() {
     setActiveTab(key)
   }
   const [favSubTab, setFavSubTab] = useState<string>('outfits')
-  const { session, profile, initialized } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const profile = useAuthStore((s) => s.profile)
+  const initialized = useAuthStore((s) => s.initialized)
   // Cuentas de marca (is_brand): su "perfil" es el perfil de marca, no el de usuario.
   const { brand: myBrand, loading: myBrandLoading } = useMyBrand(
     profile?.is_brand ? session?.user.id : undefined
@@ -66,7 +70,7 @@ export default function ProfileScreen() {
         <StatusBar barStyle="dark-content" />
         <View style={styles.gateContainer}>
           <Image
-            source={{ uri: 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/logoOPA-transparente.png' }}
+            source={{ uri: `${STORAGE_BASE_URL}/logoOPA-transparente.png` }}
             style={styles.gateLogo}
             contentFit="contain"
           />
@@ -119,13 +123,7 @@ export default function ProfileScreen() {
 
         {/* Header: avatar left + info right */}
         <View style={styles.headerRow}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{displayUsername[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
-          )}
+          <Avatar uri={avatarUrl} label={displayUsername} size={80} fallbackFontSize={32} fallbackFontFamily={fonts.mergeOne} style={styles.avatar} />
           <View style={styles.headerInfo}>
             <Text style={styles.username}>{displayUsername}</Text>
             {displayName ? <Text style={styles.fullName}>{displayName}</Text> : null}
@@ -359,9 +357,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
-  avatar: { width: 80, height: 80, borderRadius: radius.avatar, backgroundColor: colors.grisMedio, flexShrink: 0 },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rosaOpaLight },
-  avatarInitial: { fontSize: 32, fontFamily: fonts.mergeOne, color: colors.rosaOpa },
+  avatar: { flexShrink: 0 },
   headerInfo: { flex: 1, gap: 2 },
   username: { fontSize: 15, fontFamily: fonts.palanquinDark, color: colors.negro },
   fullName: { fontSize: 13, color: colors.grisOscuro },

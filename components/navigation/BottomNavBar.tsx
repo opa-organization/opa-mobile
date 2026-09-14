@@ -5,8 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs'
 import { colors } from '../../constants/colors'
 import { useAuthStore } from '../../store/useAuthStore'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 const NAV = `${STORAGE}/nav`
 
 const TAB_ICONS: Record<string, { default: string; active: string }> = {
@@ -15,6 +14,14 @@ const TAB_ICONS: Record<string, { default: string; active: string }> = {
   search:   { default: `${NAV}/search.png`,  active: `${NAV}/search_rosa.png` },
   wardrobe: { default: `${NAV}/armario.png`, active: `${NAV}/armario_rosa.png` },
   profile:  { default: `${NAV}/user.png`,    active: `${NAV}/user_rosa.png` },
+}
+
+const TAB_LABELS: Record<string, string> = {
+  index: 'Inicio',
+  outfits: 'Outfits',
+  search: 'Buscar',
+  wardrobe: 'Armario',
+  profile: 'Perfil',
 }
 
 // Cuentas de marca no tienen armario personal — en su lugar ven su catálogo
@@ -33,6 +40,7 @@ export function BottomNavBar({ state, navigation }: BottomTabBarProps) {
         const index = state.routes.indexOf(route)
         const isFocused = state.index === index
         const icons = route.name === 'wardrobe' && isBrand ? CATALOGO_ICONS : TAB_ICONS[route.name]
+        const label = route.name === 'wardrobe' && isBrand ? 'Catálogo' : TAB_LABELS[route.name]
 
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
@@ -45,6 +53,8 @@ export function BottomNavBar({ state, navigation }: BottomTabBarProps) {
             onPress={onPress}
             style={styles.tab}
             activeOpacity={0.7}
+            accessibilityLabel={label}
+            accessibilityRole="tab"
           >
             <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
               <Image

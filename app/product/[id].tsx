@@ -33,9 +33,9 @@ import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { fonts } from '../../constants/fonts'
 import { useAppWidth } from '../../constants/layout'
+import { GARMENT_COLOR_HEX } from '../../constants/garmentColors'
 import { Garment, Brand, SizeGuideEntry } from '../../types'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -546,17 +546,11 @@ export default function ProductDetail() {
   )
 }
 
-// Aproxima un nombre de color en español a un hex para el swatch — no hay
-// columna de hex en la DB, solo el nombre libre que cargó cada marca.
+// Swatch de color de la prenda: usa la paleta estandarizada compartida con el
+// selector de create-garment.tsx/search.tsx. Un color cargado como "Otro"
+// (texto libre) no tiene hex conocido y cae al gris genérico.
 function colorToHex(colorName: string): string {
-  const key = colorName.trim().toLowerCase()
-  const map: Record<string, string> = {
-    negro: '#000000', blanco: '#FFFFFF', gris: '#9E9E9E', beige: '#E8DCC8',
-    camel: '#C19A6B', crema: '#F5F0E1', azul: '#2C5AA0', celeste: '#87CEEB',
-    verde: '#4A7C59', oliva: '#6B7A3A', rojo: '#C0392B', bordo: '#7B241C',
-    rosa: '#EB006B', marron: '#6F4E37', cognac: '#9A5B33', mostaza: '#C9A227',
-  }
-  return map[key] ?? colors.grisMedio
+  return GARMENT_COLOR_HEX[colorName] ?? colors.grisMedio
 }
 
 // ─── SizeGuideSheet ───────────────────────────────────────────────────────────

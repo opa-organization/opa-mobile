@@ -1,6 +1,5 @@
 import React from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { useFollow } from '../../hooks/useFollow'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -9,6 +8,7 @@ import { fonts } from '../../constants/fonts'
 import { radius } from '../../constants/radius'
 import { spacing } from '../../constants/spacing'
 import { FollowListItem } from '../../hooks/useFollowList'
+import { Avatar } from '../ui/Avatar'
 
 interface Props {
   item: FollowListItem
@@ -16,7 +16,8 @@ interface Props {
 
 export function FollowListRow({ item }: Props) {
   const router = useRouter()
-  const { session, profile: viewerProfile } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const viewerProfile = useAuthStore((s) => s.profile)
   const viewerIsBrand = !!viewerProfile?.is_brand
   const isSelf = session?.user.id === item.id
   const { following, toggle } = useFollow(item.id)
@@ -30,13 +31,14 @@ export function FollowListRow({ item }: Props) {
 
   return (
     <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={goToProfile}>
-      {item.avatar_url ? (
-        <Image source={{ uri: item.avatar_url }} style={styles.avatar} contentFit="cover" />
-      ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder]}>
-          <Text style={styles.avatarInitial}>{(item.username[0] ?? '?').toUpperCase()}</Text>
-        </View>
-      )}
+      <Avatar
+        uri={item.avatar_url}
+        label={item.username}
+        size={48}
+        fallbackFontSize={18}
+        fallbackFontFamily={fonts.mergeOne}
+        style={styles.avatar}
+      />
       <View style={styles.info}>
         <Text style={styles.username} numberOfLines={1}>{item.username}</Text>
         {displayName !== item.username ? (
@@ -66,9 +68,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.md,
   },
-  avatar: { width: 48, height: 48, borderRadius: radius.avatar, backgroundColor: colors.grisMedio, flexShrink: 0 },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rosaOpaLight },
-  avatarInitial: { fontSize: 18, fontFamily: fonts.mergeOne, color: colors.rosaOpa },
+  avatar: { flexShrink: 0 },
   info: { flex: 1, gap: 1 },
   username: { fontSize: 14, fontFamily: fonts.palanquinDark, color: colors.negro },
   name: { fontSize: 12, color: colors.grisClaro },

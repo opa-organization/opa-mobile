@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   StatusBar, ActivityIndicator, Alert,
 } from 'react-native'
-import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { colors } from '../constants/colors'
 import { fonts } from '../constants/fonts'
@@ -12,10 +11,11 @@ import { radius } from '../constants/radius'
 import { useAuthStore } from '../store/useAuthStore'
 import { supabase } from '../lib/supabase'
 import { getRememberedAccounts, removeRememberedAccount, RememberedAccount } from '../lib/rememberedAccounts'
+import { Avatar } from '../components/ui/Avatar'
 
 export default function SwitchAccountScreen() {
   const router = useRouter()
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [accounts, setAccounts] = useState<RememberedAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [switchingId, setSwitchingId] = useState<string | null>(null)
@@ -85,13 +85,15 @@ export default function SwitchAccountScreen() {
                     onPress={() => handleSwitch(account)}
                     disabled={!!switchingId}
                   >
-                    {account.avatarUrl ? (
-                      <Image source={{ uri: account.avatarUrl }} style={styles.avatar} contentFit="cover" />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarFallback]}>
-                        <Text style={styles.avatarInitial}>{displayLabel(account)[0]?.toUpperCase() ?? '?'}</Text>
-                      </View>
-                    )}
+                    <Avatar
+                      uri={account.avatarUrl}
+                      label={displayLabel(account)}
+                      size={44}
+                      fallbackBackgroundColor={colors.rosaOpa}
+                      fallbackTextColor={colors.blanco}
+                      fallbackFontSize={18}
+                      fallbackFontFamily={fonts.mergeOne}
+                    />
                     <View style={styles.rowText}>
                       <View style={styles.rowNameLine}>
                         <Text style={styles.rowLabel} numberOfLines={1}>{displayLabel(account)}</Text>
@@ -177,8 +179,6 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.grisBorde, marginLeft: 44 + spacing.md * 2 },
 
   avatar: { width: 44, height: 44, borderRadius: radius.avatar },
-  avatarFallback: { backgroundColor: colors.rosaOpa, alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 18, color: colors.blanco, fontFamily: fonts.mergeOne },
   addAvatar: {
     backgroundColor: colors.rosaOpaLight,
     alignItems: 'center',

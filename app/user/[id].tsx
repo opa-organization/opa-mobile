@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  StatusBar, ScrollView, FlatList, ActivityIndicator, Dimensions,
+  StatusBar, ScrollView, FlatList, ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -15,8 +15,10 @@ import { useProfile } from '../../hooks/useProfile'
 import { useOutfits } from '../../hooks/useOutfits'
 import { useFollow } from '../../hooks/useFollow'
 import { useAuthStore } from '../../store/useAuthStore'
+import { STORAGE_BASE_URL } from '../../constants/storage'
+import { Avatar } from '../../components/ui/Avatar'
 
-const BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+const BASE = `${STORAGE_BASE_URL}/`
 const NAV_BASE = BASE + 'nav/'
 
 // Misma navbar que (tabs)/_layout, pero standalone: esta pantalla vive fuera del Tabs
@@ -38,7 +40,8 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const screenWidth = useAppWidth()
   const cardWidth = Math.floor((screenWidth - spacing.md * 2 - 4 * 2) / 3)
-  const { session, profile: viewerProfile } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const viewerProfile = useAuthStore((s) => s.profile)
   // Las cuentas de marca no pueden seguir a otras cuentas ni acceder al feed.
   const viewerIsBrand = !!viewerProfile?.is_brand
   const { profile, loading: profileLoading } = useProfile(id)
@@ -90,13 +93,7 @@ export default function UserProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Avatar + stats */}
         <View style={styles.headerRow}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{displayUsername[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
-          )}
+          <Avatar uri={avatarUrl} label={displayUsername} size={76} fallbackFontSize={30} fallbackFontFamily={fonts.mergeOne} style={styles.avatar} />
           <View style={styles.statsRow}>
             {[
               { label: 'Seguidores', value: profile.followers_count, onPress: () => router.push(`/followers/${id}?type=followers`) },
@@ -249,9 +246,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     gap: spacing.lg,
   },
-  avatar: { width: 76, height: 76, borderRadius: radius.avatar, backgroundColor: colors.grisMedio, flexShrink: 0 },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rosaOpaLight },
-  avatarInitial: { fontSize: 30, fontFamily: fonts.mergeOne, color: colors.rosaOpa },
+  avatar: { flexShrink: 0 },
 
   statsRow: { flex: 1, flexDirection: 'row' },
   statItem: { flex: 1, alignItems: 'center' },

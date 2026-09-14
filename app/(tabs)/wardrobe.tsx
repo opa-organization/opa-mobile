@@ -21,6 +21,7 @@ import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
+import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
 import { WardrobeItem, Garment, Brand, Outfit } from '../../types'
 
 const NUM_COLS = 3
@@ -32,16 +33,15 @@ function useCardSize() {
   return (appWidth - spacing.lg * 2 - spacing.sm * (NUM_COLS - 1)) / NUM_COLS
 }
 
-const SLOTS = [
+const SLOTS: { key: string; label: string }[] = [
   { key: 'all', label: 'Todo' },
-  { key: 'torso', label: 'Torso' },
-  { key: 'piernas', label: 'Piernas' },
-  { key: 'calzado', label: 'Calzado' },
-  { key: 'extras', label: 'Extras' },
+  ...GARMENT_CATEGORIES,
 ]
 
 export default function WardrobeScreen() {
-  const { session, profile, initialized } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const profile = useAuthStore((s) => s.profile)
+  const initialized = useAuthStore((s) => s.initialized)
 
   if (!initialized) {
     return (
@@ -74,7 +74,7 @@ function PersonalWardrobeView({ userId }: { userId: string }) {
 
   const filtered = activeSlot === 'all'
     ? items
-    : items.filter((item) => (item as any).slot === activeSlot)
+    : items.filter((item) => item.garment?.category === activeSlot)
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

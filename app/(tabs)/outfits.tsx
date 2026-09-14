@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   View, FlatList, StyleSheet, useWindowDimensions, TouchableOpacity, Text,
-  StatusBar, SafeAreaView, ActivityIndicator,
+  StatusBar, SafeAreaView, ActivityIndicator, ViewToken,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -11,8 +11,12 @@ import { useFollowedBrandIds } from '../../hooks/useFollowedBrandIds'
 import { OutfitScrollItem } from '../../components/outfit/OutfitScrollItem'
 import { colors } from '../../constants/colors'
 import { useAuthStore } from '../../store/useAuthStore'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+// Hoisteado a nivel de módulo para que sea una referencia estable entre renders
+// (un objeto literal inline en la prop haría que RN piense que la config cambió
+// en cada render).
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50 }
 
 export default function OutfitsScreen() {
   const [activeIndex, setActiveIndex] = useState(0)
@@ -30,7 +34,7 @@ export default function OutfitsScreen() {
   // el alto real de BottomNavBar: paddingTop 8 + iconWrap 48 + paddingBottom + borde 1.
   const tabBarHeight = 8 + 48 + (insets.bottom || 8) + 1
   const pageH = SH - tabBarHeight
-  const { profile } = useAuthStore()
+  const profile = useAuthStore((s) => s.profile)
   const { outfits, loading, loadingMore, hasMore, loadMore } = useOutfits()
   const { brandIds: followedBrandIds, loading: loadingBrands } = useFollowedBrandIds()
   const { outfitId } = useLocalSearchParams<{ outfitId?: string }>()
@@ -50,7 +54,7 @@ export default function OutfitsScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: false })
   }, [tab])
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0)
   })
 
@@ -145,7 +149,7 @@ export default function OutfitsScreen() {
           showsVerticalScrollIndicator={false}
           decelerationRate="fast"
           onViewableItemsChanged={onViewableItemsChanged.current}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          viewabilityConfig={VIEWABILITY_CONFIG}
           getItemLayout={(_, index) => ({ length: pageH, offset: pageH * index, index })}
           onEndReached={() => { if (hasMore) loadMore() }}
           onEndReachedThreshold={1}

@@ -8,7 +8,7 @@ interface RecommendedSize {
 }
 
 export function useRecommendedSize(guideId?: string | null) {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [recommendation, setRecommendation] = useState<RecommendedSize | null>(null)
   const [loading, setLoading] = useState(false)
 

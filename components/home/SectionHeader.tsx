@@ -14,7 +14,13 @@ export function SectionHeader({ title, onPress }: Props) {
     <View style={styles.row}>
       <Text style={styles.title}>{title}</Text>
       {onPress && (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={styles.arrow}>
+        <TouchableOpacity
+          onPress={onPress}
+          activeOpacity={0.6}
+          style={styles.arrow}
+          accessibilityLabel="Ver más"
+          accessibilityRole="button"
+        >
           <Text style={styles.arrowText}>→</Text>
         </TouchableOpacity>
       )}

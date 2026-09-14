@@ -12,8 +12,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { supabase } from '../lib/supabase'
 import { timeAgo } from '../lib/timeAgo'
 import { AppNotification } from '../types'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 
 function initials(name?: string | null) {
   if (!name) return '?'

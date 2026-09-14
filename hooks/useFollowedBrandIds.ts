@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/useAuthStore'
 // la misma tabla `follows` que el follow entre usuarios (following_id = marcas.profile_id),
 // así que hace falta un segundo paso para resolver profile_id → marcas.id.
 export function useFollowedBrandIds() {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [brandIds, setBrandIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 

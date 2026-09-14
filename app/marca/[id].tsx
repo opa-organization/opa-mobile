@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  StatusBar, ScrollView, FlatList, ActivityIndicator, Dimensions,
+  StatusBar, ScrollView, FlatList, ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -15,8 +15,10 @@ import { useBrand } from '../../hooks/useBrand'
 import { useWardrobe } from '../../hooks/useWardrobe'
 import { useFollow } from '../../hooks/useFollow'
 import { useAuthStore } from '../../store/useAuthStore'
+import { STORAGE_BASE_URL } from '../../constants/storage'
+import { Avatar } from '../../components/ui/Avatar'
 
-const BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+const BASE = `${STORAGE_BASE_URL}/`
 const NAV_BASE = BASE + 'nav/'
 
 // Misma navbar que (tabs)/_layout, pero standalone: esta pantalla vive fuera del
@@ -50,7 +52,8 @@ export default function BrandProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const screenWidth = useAppWidth()
   const cardWidth = Math.floor((screenWidth - spacing.md * 2 - 4 * 2) / 3)
-  const { session, profile } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const profile = useAuthStore((s) => s.profile)
   // Las cuentas de marca no pueden seguir a otras cuentas ni acceder al feed.
   const viewerIsBrand = !!profile?.is_brand
 
@@ -127,13 +130,13 @@ export default function BrandProfileScreen() {
 
         {/* Avatar-logo circular que pisa el banner */}
         <View style={styles.avatarWrap}>
-          {brand.logo_url ? (
-            <Image source={{ uri: brand.logo_url }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarInitial}>{brand.name[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
-          )}
+          <Avatar
+            uri={brand.logo_url}
+            label={brand.name}
+            size={AVATAR_SIZE - 6}
+            fallbackFontSize={34}
+            fallbackFontFamily={fonts.mergeOne}
+          />
         </View>
 
         {/* Nombre + verificada */}
@@ -364,9 +367,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blanco,
     overflow: 'hidden',
   },
-  avatar: { width: '100%', height: '100%', borderRadius: AVATAR_SIZE / 2 },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.rosaOpaLight },
-  avatarInitial: { fontSize: 34, fontFamily: fonts.mergeOne, color: colors.rosaOpa },
 
   // Info
   infoBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: 3 },

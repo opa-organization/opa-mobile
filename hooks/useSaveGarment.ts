@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/useAuthStore'
 // Guardar una prenda en favoritos para comprar más tarde (`prendas_guardadas`).
 // Mismo patrón optimista que useLike/useSave (outfits).
 export function useSaveGarment(garmentId?: string) {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 

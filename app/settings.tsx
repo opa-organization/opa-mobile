@@ -12,8 +12,10 @@ import { radius } from '../constants/radius'
 import { useAuthStore } from '../store/useAuthStore'
 import { supabase } from '../lib/supabase'
 import { getRememberedAccounts } from '../lib/rememberedAccounts'
+import { STORAGE_BASE_URL } from '../constants/storage'
+import { Avatar } from '../components/ui/Avatar'
 
-const BASE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets/'
+const BASE = `${STORAGE_BASE_URL}/`
 
 // icon: nombre de archivo en Storage; textIcon: glifo de texto para casos sin
 // asset dedicado (no hay ícono de "cambiar cuenta" en el bucket — ver CLAUDE.md).
@@ -49,7 +51,9 @@ const SECTIONS: { title: string; items: SettingsItem[] }[] = [
 
 export default function SettingsScreen() {
   const router = useRouter()
-  const { session, profile, clear } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
+  const profile = useAuthStore((s) => s.profile)
+  const clear = useAuthStore((s) => s.clear)
 
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [password, setPassword] = useState('')
@@ -183,13 +187,15 @@ export default function SettingsScreen() {
 
         {/* Profile card */}
         <TouchableOpacity style={styles.profileCard} activeOpacity={0.85} onPress={() => router.back()}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.profileAvatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.profileAvatar, styles.profileAvatarFallback]}>
-              <Text style={styles.profileAvatarInitial}>{displayUsername[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
-          )}
+          <Avatar
+            uri={avatarUrl}
+            label={displayUsername}
+            size={52}
+            fallbackBackgroundColor={colors.rosaOpa}
+            fallbackTextColor={colors.blanco}
+            fallbackFontSize={22}
+            fallbackFontFamily={fonts.mergeOne}
+          />
           <View style={styles.profileCardInfo}>
             <Text style={styles.profileCardName}>{displayName || displayUsername}</Text>
             <Text style={styles.profileCardUsername}>@{displayUsername}</Text>
@@ -464,13 +470,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
-  profileAvatar: { width: 52, height: 52, borderRadius: radius.avatar },
-  profileAvatarFallback: {
-    backgroundColor: colors.rosaOpa,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileAvatarInitial: { fontSize: 22, color: colors.blanco, fontFamily: fonts.mergeOne },
   profileCardInfo: { flex: 1 },
   profileCardName: { fontSize: 15, fontFamily: fonts.palanquinDark, color: colors.negro },
   profileCardUsername: { fontSize: 12, color: colors.grisClaro, marginTop: 1 },

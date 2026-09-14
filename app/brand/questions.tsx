@@ -14,8 +14,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
 import { useBrandQuestions } from '../../hooks/useBrandQuestions'
 import { timeAgo } from '../../lib/timeAgo'
-
-const STORAGE = 'https://vecnktrbjolahcalkbml.supabase.co/storage/v1/object/public/assets'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 
 function initials(username?: string | null) {
   if (!username) return '?'

@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/useAuthStore'
 // useSaveGarment/useFollow. Cuentas de marca no preguntan (mismo criterio que
 // bloquea like/save/follow para is_brand) — el caller debe ocultar el botón.
 export function useAskQuestion() {
-  const { session } = useAuthStore()
+  const session = useAuthStore((s) => s.session)
   const [sending, setSending] = useState(false)
 
   async function ask(brandId: string, question: string, garmentId?: string) {
