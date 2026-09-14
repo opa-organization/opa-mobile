@@ -40,12 +40,30 @@ type AccountResult =
 // Categorías reales de prenda (mismo enum que `prendas.category` / outfit_items.slot,
 // ya usado en wardrobe.tsx) — a diferencia de los tags de estilo/ocasión de abajo,
 // estos son un vocabulario controlado: siempre van a devolver resultados si existen.
+// 'todo' no es una categoría real de la DB: es un chip explícito para ver las 4
+// categorías mezcladas (sin filtro de category), va primero en la fila a propósito.
 const CATEGORY_TAGS = [
+  { key: 'todo', label: 'Todo' },
   { key: 'torso', label: 'Torso' },
   { key: 'piernas', label: 'Piernas' },
   { key: 'calzado', label: 'Calzado' },
   { key: 'extras', label: 'Extras' },
 ]
+
+// color/style de `prendas` son texto libre (no un enum) con mayúsculas inconsistentes
+// en los datos reales (ej. "Azul" vs "azul") — se traen los valores reales que existen
+// hoy (mismo criterio que outfitTags más abajo) y se deduplican ignorando mayúsculas,
+// quedándose con la primera variante de casing que aparece para mostrar en el chip.
+function dedupeCaseInsensitive(values: string[]): string[] {
+  const seen = new Map<string, string>()
+  for (const raw of values) {
+    const v = raw?.trim()
+    if (!v) continue
+    const key = v.toLowerCase()
+    if (!seen.has(key)) seen.set(key, v)
+  }
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'))
+}
 
 type OutfitSort = 'popular' | 'recientes'
 type PrendaSort = 'recientes' | 'precio_asc' | 'precio_desc'
@@ -71,6 +89,9 @@ export default function SearchScreen() {
   const [maxPrice, setMaxPrice] = useState('')
   const [outfitSort, setOutfitSort] = useState<OutfitSort>('popular')
   const [prendaSort, setPrendaSort] = useState<PrendaSort>('recientes')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [colorFilters, setColorFilters] = useState<string[]>([])
+  const [styleFilters, setStyleFilters] = useState<string[]>([])
   const [outfits, setOutfits] = useState<Outfit[]>([])
   const [garments, setGarments] = useState<(Garment & { brand?: Brand })[]>([])
   const [accounts, setAccounts] = useState<AccountResult[]>([])
@@ -98,6 +119,36 @@ export default function SearchScreen() {
     loadOutfitTags()
   }, [])
 
+  // Mismo patrón que outfitTags: opciones de Color/Estilo del panel de filtros
+  // avanzados se arman con valores reales de `prendas`, no con una lista inventada.
+  const [garmentColors, setGarmentColors] = useState<string[]>([])
+  const [garmentStyles, setGarmentStyles] = useState<string[]>([])
+  useEffect(() => {
+    async function loadGarmentFilterOptions() {
+      const [{ data: colorsData }, { data: stylesData }] = await Promise.all([
+        supabase.from('prendas').select('color').eq('descontinuada', false).not('color', 'is', null),
+        supabase.from('prendas').select('style').eq('descontinuada', false).not('style', 'is', null),
+      ])
+      setGarmentColors(dedupeCaseInsensitive((colorsData ?? []).map((r) => r.color as string)))
+      setGarmentStyles(dedupeCaseInsensitive((stylesData ?? []).map((r) => r.style as string)))
+    }
+    loadGarmentFilterOptions()
+  }, [])
+
+  function toggleColorFilter(value: string) {
+    setColorFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+  }
+  function toggleStyleFilter(value: string) {
+    setStyleFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+  }
+  function clearGarmentFilters() {
+    setMinPrice('')
+    setMaxPrice('')
+    setPrendaSort('recientes')
+    setColorFilters([])
+    setStyleFilters([])
+  }
+
   const runSearch = useCallback(async (
     text: string,
     tag: string | null,
@@ -106,8 +157,10 @@ export default function SearchScreen() {
     max: string,
     oSort: OutfitSort,
     pSort: PrendaSort,
+    colors: string[],
+    stylesArr: string[],
   ) => {
-    if (!text.trim() && !tag && !min.trim() && !max.trim()) {
+    if (!text.trim() && !tag && !min.trim() && !max.trim() && colors.length === 0 && stylesArr.length === 0) {
       setOutfits([])
       setGarments([])
       setAccounts([])
@@ -135,20 +188,33 @@ export default function SearchScreen() {
           .from('prendas')
           .select('*, brand:marcas(id, name, logo_url)')
           .eq('descontinuada', false)
-          .limit(30)
+          .limit(100)
         if (pSort === 'precio_asc') q = q.order('price', { ascending: true })
         else if (pSort === 'precio_desc') q = q.order('price', { ascending: false })
         else q = q.order('created_at', { ascending: false })
         // Full-text search sobre name + description + nombre de marca (search_vector,
         // mantenida por trigger porque el nombre de marca es de otra tabla)
         if (text.trim()) q = q.textSearch('search_vector', text.trim(), { type: 'websearch', config: 'spanish' })
-        if (tag) q = q.eq('category', tag)
+        if (tag && tag !== 'todo') q = q.eq('category', tag)
         const minVal = parseFloat(min)
         const maxVal = parseFloat(max)
         if (!isNaN(minVal)) q = q.gte('price', minVal)
         if (!isNaN(maxVal)) q = q.lte('price', maxVal)
         const { data } = await q
-        setGarments((data ?? []) as (Garment & { brand?: Brand })[])
+        // Color/estilo se filtran en el cliente, no con .ilike()/.or() server-side: son
+        // texto libre con casing inconsistente (ver dedupeCaseInsensitive arriba) y la
+        // tabla es chica (decenas de filas), así que comparar en JS es más simple y
+        // evita tener que armar/escapar un string OR de PostgREST a mano.
+        let results = (data ?? []) as (Garment & { brand?: Brand })[]
+        if (colors.length > 0) {
+          const colorSet = new Set(colors.map((c) => c.toLowerCase()))
+          results = results.filter((g) => g.color && colorSet.has(g.color.toLowerCase()))
+        }
+        if (stylesArr.length > 0) {
+          const styleSet = new Set(stylesArr.map((s) => s.toLowerCase()))
+          results = results.filter((g) => g.style && styleSet.has(g.style.toLowerCase()))
+        }
+        setGarments(results)
       } else {
         // Tablas chicas (7 marcas, decenas de perfiles hoy) — ilike alcanza, no
         // amerita full-text/migración. Se excluyen perfiles is_brand=true de
@@ -177,10 +243,10 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      runSearch(query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort)
+      runSearch(query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, styleFilters)
     }, 350)
     return () => clearTimeout(timeout)
-  }, [query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, runSearch])
+  }, [query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, styleFilters, runSearch])
 
   const allTags = tab === 'prendas' ? CATEGORY_TAGS.map((c) => c.key) : outfitTags
 
@@ -215,7 +281,15 @@ export default function SearchScreen() {
           <TouchableOpacity
             key={t}
             style={[styles.tabItem, tab === t && styles.tabItemActive]}
-            onPress={() => { setTab(t); setActiveTag(null) }}
+            onPress={() => {
+              setTab(t)
+              setActiveTag(null)
+              if (t !== 'prendas') {
+                setFiltersOpen(false)
+                setColorFilters([])
+                setStyleFilters([])
+              }
+            }}
           >
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
               {TAB_LABELS[t]}
@@ -224,31 +298,57 @@ export default function SearchScreen() {
         ))}
       </View>
 
-      {/* Tag filters — categorías reales para Prendas, style/occasion reales para Outfits */}
+      {/* Tag filters — categorías reales para Prendas, style/occasion reales para Outfits.
+          En Prendas comparte fila con el ícono plegable de filtros avanzados. */}
       {tab !== 'marcas' && (
-        <FlatList
-          horizontal
-          style={styles.tagListWrapper}
-          data={allTags}
-          keyExtractor={(t) => t}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tagList}
-          renderItem={({ item: tag }) => (
+        <View style={styles.tagRow}>
+          <FlatList
+            horizontal
+            style={styles.tagListFlatList}
+            data={allTags}
+            keyExtractor={(t) => t}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tagList}
+            renderItem={({ item: tag }) => (
+              <TouchableOpacity
+                style={[styles.tag, activeTag === tag && styles.tagActive]}
+                onPress={() => setActiveTag(activeTag === tag ? null : tag)}
+              >
+                <Text style={[styles.tagText2, activeTag === tag && styles.tagTextActive]}>
+                  {tab === 'prendas' ? CATEGORY_TAGS.find((c) => c.key === tag)?.label ?? tag : `#${tag}`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+          {tab === 'prendas' && (
             <TouchableOpacity
-              style={[styles.tag, activeTag === tag && styles.tagActive]}
-              onPress={() => setActiveTag(activeTag === tag ? null : tag)}
+              style={styles.filterIconBtn}
+              onPress={() => setFiltersOpen((o) => !o)}
+              accessibilityLabel="Filtros avanzados"
             >
-              <Text style={[styles.tagText2, activeTag === tag && styles.tagTextActive]}>
-                {tab === 'prendas' ? CATEGORY_TAGS.find((c) => c.key === tag)?.label ?? tag : `#${tag}`}
-              </Text>
+              <Image
+                source={{ uri: ASSETS_BASE + (filtersOpen ? 'filtro_rosa.png' : 'filtro_negro.png') }}
+                style={styles.filterIcon}
+                contentFit="contain"
+              />
             </TouchableOpacity>
           )}
-        />
+        </View>
       )}
 
-      {/* Precio + orden — solo aplican a Prendas / Outfits */}
-      {tab === 'prendas' && (
-        <View style={styles.filterRow}>
+      {/* Panel plegable de filtros avanzados — precio, orden, color y estilo, todo
+          en un solo lugar detrás del ícono (decisión del usuario: consolidar acá en
+          vez de dejar precio/orden siempre visibles como antes). */}
+      {tab === 'prendas' && filtersOpen && (
+        <View style={styles.filterPanel}>
+          <View style={styles.filterPanelHeader}>
+            <Text style={styles.filterPanelTitle}>Filtros</Text>
+            <TouchableOpacity onPress={clearGarmentFilters}>
+              <Text style={styles.filterPanelClear}>Limpiar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.filterSectionLabel}>Precio</Text>
           <View style={styles.priceInputs}>
             <TextInput
               style={styles.priceInput}
@@ -268,6 +368,8 @@ export default function SearchScreen() {
               keyboardType="numeric"
             />
           </View>
+
+          <Text style={styles.filterSectionLabel}>Ordenar por</Text>
           <View style={styles.sortPills}>
             {PRENDA_SORTS.map((s) => (
               <TouchableOpacity
@@ -279,8 +381,43 @@ export default function SearchScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {garmentColors.length > 0 && (
+            <>
+              <Text style={styles.filterSectionLabel}>Color</Text>
+              <View style={styles.chipsWrap}>
+                {garmentColors.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.filterChip, colorFilters.includes(c) && styles.filterChipActive]}
+                    onPress={() => toggleColorFilter(c)}
+                  >
+                    <Text style={[styles.filterChipText, colorFilters.includes(c) && styles.filterChipTextActive]}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
+          {garmentStyles.length > 0 && (
+            <>
+              <Text style={styles.filterSectionLabel}>Estilo</Text>
+              <View style={styles.chipsWrap}>
+                {garmentStyles.map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.filterChip, styleFilters.includes(s) && styles.filterChipActive]}
+                    onPress={() => toggleStyleFilter(s)}
+                  >
+                    <Text style={[styles.filterChipText, styleFilters.includes(s) && styles.filterChipTextActive]}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
         </View>
       )}
+
       {tab === 'outfits' && (
         <View style={styles.filterRow}>
           <View style={styles.sortPills}>
@@ -443,7 +580,10 @@ const styles = StyleSheet.create({
   // layout "roba" espacio de esta fila (se encoge a ~16px, el mínimo de una sola
   // línea de texto) para dárselo al FlatList de abajo. Con fondo blanco casi no
   // se nota, pero con el chip activo (fondo negro) el recorte tapa el texto.
-  tagListWrapper: { flexGrow: 0, flexShrink: 0, height: 44 },
+  // El fix ahora vive en `tagRow` (el hermano directo del FlatList de resultados);
+  // el FlatList de chips adentro solo necesita flex:1 para ocupar el resto de la fila.
+  tagRow: { flexDirection: 'row', alignItems: 'center', flexGrow: 0, flexShrink: 0, height: 44 },
+  tagListFlatList: { flex: 1 },
   tagList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
   tag: {
     paddingHorizontal: spacing.md,
@@ -487,6 +627,44 @@ const styles = StyleSheet.create({
   sortPillActive: { backgroundColor: colors.rosaOpa, borderColor: colors.rosaOpa },
   sortPillText: { fontSize: 11, fontWeight: '600', color: colors.grisOscuro },
   sortPillTextActive: { color: colors.blanco },
+
+  filterIconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm },
+  filterIcon: { width: 20, height: 20 },
+
+  // flexShrink: 0 por el mismo motivo que tagRow más arriba — este panel es hermano
+  // del FlatList de resultados dentro del contenedor flex:1, así que sin esto se
+  // podría encoger si los resultados no entran en pantalla.
+  filterPanel: {
+    flexShrink: 0,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.grisBorde,
+  },
+  filterPanelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  filterPanelTitle: { fontSize: 13, fontWeight: '700', color: colors.negro },
+  filterPanelClear: { fontSize: 12, color: colors.rosaOpa, fontWeight: '600' },
+  filterSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.grisOscuro,
+    textTransform: 'uppercase',
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  filterChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    borderColor: colors.bordeTag,
+    backgroundColor: colors.blanco,
+  },
+  filterChipActive: { backgroundColor: colors.rosaOpa, borderColor: colors.rosaOpa },
+  filterChipText: { fontSize: 12, color: colors.grisOscuro, textTransform: 'capitalize' },
+  filterChipTextActive: { color: colors.blanco, fontWeight: '600' },
 
   brandList: { padding: spacing.lg, gap: spacing.md },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
