@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   StatusBar, ActivityIndicator, Alert,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { colors } from '../constants/colors'
 import { fonts } from '../constants/fonts'
@@ -11,6 +12,7 @@ import { radius } from '../constants/radius'
 import { useAuthStore } from '../store/useAuthStore'
 import { supabase } from '../lib/supabase'
 import { getRememberedAccounts, removeRememberedAccount, RememberedAccount } from '../lib/rememberedAccounts'
+import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 import { Avatar } from '../components/ui/Avatar'
 
 export default function SwitchAccountScreen() {
@@ -57,7 +59,7 @@ export default function SwitchAccountScreen() {
       <View style={styles.header}>
         {session && (
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+            <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backArrow} contentFit="contain" />
           </TouchableOpacity>
         )}
         <View>
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grisBorde,
   },
   backBtn: { padding: 4 },
-  backArrow: { fontSize: 22, color: colors.negro },
+  backArrow: { width: 22, height: 22 },
   headerTitle: { fontSize: 22, fontFamily: fonts.palanquinDark, color: colors.negro },
   headerSubtitle: { fontSize: 12, color: colors.grisClaro, marginTop: 1 },
 

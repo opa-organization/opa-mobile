@@ -3,11 +3,13 @@ import {
   View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
   ScrollView, StatusBar, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { colors } from '../constants/colors'
 import { fonts } from '../constants/fonts'
 import { spacing } from '../constants/spacing'
 import { radius } from '../constants/radius'
+import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 import { useUserMeasurements } from '../hooks/useUserMeasurements'
 
 const FIELDS: { key: 'height' | 'chest' | 'waist' | 'hip' | 'thigh' | 'foot_length'; label: string }[] = [
@@ -64,7 +66,7 @@ export default function MeasurementsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backArrow} contentFit="contain" />
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Mis medidas</Text>
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grisBorde,
   },
   backBtn: { padding: 4 },
-  backArrow: { fontSize: 22, color: colors.negro },
+  backArrow: { width: 22, height: 22 },
   headerTitle: { fontSize: 22, fontFamily: fonts.palanquinDark, color: colors.negro },
   headerSubtitle: { fontSize: 12, color: colors.grisClaro, marginTop: 1 },
 

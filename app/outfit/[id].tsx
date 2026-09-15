@@ -16,6 +16,7 @@ import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
 import { useAppWidth } from '../../constants/layout'
+import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 import { GARMENT_CATEGORIES } from '../../constants/garmentCategories'
 import { Avatar } from '../../components/ui/Avatar'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -72,7 +73,7 @@ export default function OutfitDetail() {
     return (
       <SafeAreaView style={styles.safe}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backText} contentFit="contain" />
         </TouchableOpacity>
         <View style={styles.center}>
           <ErrorState onRetry={() => id && fetchOutfit(id)} />
@@ -85,7 +86,7 @@ export default function OutfitDetail() {
     return (
       <SafeAreaView style={styles.safe}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backText} contentFit="contain" />
         </TouchableOpacity>
         <View style={styles.center}>
           <Text style={styles.emptyText}>Outfit no encontrado</Text>
@@ -102,7 +103,7 @@ export default function OutfitDetail() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backText} contentFit="contain" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {outfit.title ?? 'Outfit'}
@@ -242,7 +243,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.grisBorde,
   },
   backBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
-  backText: { fontSize: 22, color: colors.negro },
+  backText: { width: 22, height: 22 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '600', color: colors.negro },
 
   coverImage: { backgroundColor: colors.grisBorde },

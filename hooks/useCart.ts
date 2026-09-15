@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/useAuthStore'
+import { logError } from '../lib/errorLog'
 import { Garment } from '../types'
 
 export interface CartRow {
@@ -18,6 +19,8 @@ export function useCart() {
   const userId = session?.user.id
   const [items, setItems] = useState<CartRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const clearError = useCallback(() => setError(null), [])
 
   const refetch = useCallback(async () => {
     if (!userId) { setItems([]); setLoading(false); return }
@@ -58,17 +61,29 @@ export function useCart() {
 
   async function updateQuantity(id: string, quantity: number) {
     if (quantity <= 0) return removeItem(id)
+    const previous = items
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity } : i)))
-    await supabase.from('productos_carrito').update({ quantity }).eq('id', id)
+    const { error: err } = await supabase.from('productos_carrito').update({ quantity }).eq('id', id)
+    if (err) {
+      setItems(previous)
+      logError('useCart.updateQuantity', err.message)
+      setError('No se pudo actualizar la cantidad. Probá de nuevo.')
+    }
   }
 
   async function removeItem(id: string) {
+    const previous = items
     setItems((prev) => prev.filter((i) => i.id !== id))
-    await supabase.from('productos_carrito').delete().eq('id', id)
+    const { error: err } = await supabase.from('productos_carrito').delete().eq('id', id)
+    if (err) {
+      setItems(previous)
+      logError('useCart.removeItem', err.message)
+      setError('No se pudo sacar el producto. Probá de nuevo.')
+    }
   }
 
   const total = items.reduce((sum, i) => sum + (i.garment?.price ?? 0) * i.quantity, 0)
   const count = items.reduce((sum, i) => sum + i.quantity, 0)
 
-  return { items, loading, total, count, addItem, refetch, updateQuantity, removeItem }
+  return { items, loading, total, count, error, clearError, addItem, refetch, updateQuantity, removeItem }
 }

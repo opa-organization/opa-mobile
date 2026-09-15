@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
@@ -14,7 +14,13 @@ import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 // `productos_carrito`. No hay checkout todavía — eso es un pendiente aparte.
 export default function CartScreen() {
   const router = useRouter()
-  const { items, loading, total, updateQuantity, removeItem } = useCart()
+  const { items, loading, total, updateQuantity, removeItem, error, clearError } = useCart()
+
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(clearError, 1800)
+    return () => clearTimeout(t)
+  }, [error, clearError])
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -59,6 +65,12 @@ export default function CartScreen() {
           <TouchableOpacity style={styles.checkoutBtn} disabled activeOpacity={1}>
             <Text style={styles.checkoutBtnText}>Finalizar compra (próximamente)</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {error && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>{error}</Text>
         </View>
       )}
     </SafeAreaView>
@@ -160,4 +172,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkoutBtnText: { color: colors.grisOscuro, fontSize: 14, fontWeight: '700' },
+
+  toast: {
+    position: 'absolute', bottom: 24, left: spacing.lg, right: spacing.lg,
+    backgroundColor: colors.negro, borderRadius: radius.chip,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    alignItems: 'center',
+  },
+  toastText: { color: colors.blanco, fontSize: 13, fontWeight: '600' },
 })

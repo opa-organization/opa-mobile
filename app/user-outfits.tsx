@@ -3,11 +3,13 @@ import {
   View, FlatList, StyleSheet, useWindowDimensions,
   TouchableOpacity, Text, StatusBar, ActivityIndicator, ViewToken,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useOutfits } from '../hooks/useOutfits'
 import { OutfitScrollItem } from '../components/outfit/OutfitScrollItem'
 import { ErrorState } from '../components/ui/ErrorState'
 import { colors } from '../constants/colors'
+import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
 
 export default function UserOutfitsScreen() {
   const router = useRouter()
@@ -59,7 +61,7 @@ export default function UserOutfitsScreen() {
 
       {/* Minimal back button */}
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-        <Text style={styles.backText}>←</Text>
+        <Image source={{ uri: `${STORAGE}/flecha.png` }} style={styles.backText} contentFit="contain" tintColor={colors.blanco} />
       </TouchableOpacity>
 
       <FlatList
@@ -102,5 +104,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backText: { color: colors.blanco, fontSize: 20, lineHeight: 22 },
+  backText: { width: 18, height: 18 },
 })

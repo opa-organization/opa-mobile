@@ -177,7 +177,7 @@ export default function SettingsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backArrow}>←</Text>
+            <Image source={{ uri: `${BASE}flecha.png` }} style={styles.backArrow} contentFit="contain" />
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>Configuración</Text>
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grisBorde,
   },
   backBtn: { padding: 4 },
-  backArrow: { fontSize: 22, color: colors.negro },
+  backArrow: { width: 22, height: 22 },
   headerTitle: { fontSize: 22, fontFamily: fonts.palanquinDark, color: colors.negro },
   headerSubtitle: { fontSize: 12, color: colors.grisClaro, marginTop: 1 },
 

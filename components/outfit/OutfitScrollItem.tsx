@@ -251,16 +251,16 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 20,
   },
   actionBtn: {
-    width: 34, height: 34,
+    width: 44, height: 44,
     alignItems: 'center', justifyContent: 'center',
   },
   actionIcon: {
-    fontSize: 30, color: colors.blanco,
+    fontSize: 32, color: colors.blanco,
     textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
   },
   actionIconLiked: { color: colors.rosaOpa },
   shareIcon: {
-    width: 26, height: 26,
+    width: 28, height: 28,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.35, shadowRadius: 3,
   },
   brandInfo: { position: 'absolute', bottom: 100, left: 16, right: 70 },
