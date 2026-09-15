@@ -132,11 +132,11 @@ Radius:  card=15, chip=10, button=8, tag=8, avatar=9999
 - Container: transparent — texto plano sobre la foto, SIN pill oscuro (se removió `rgba(0,0,0,0.4)` el 2026-07-06 para matchear el prototipo)
 - Inactive tab: `color: rgba(255,255,255,0.6)`, `fontSize: 13`, `fontWeight: 500`
 - Active tab: `color: blanco`, `fontWeight: 700`, `2px` `rosaOpa` underline (implementado como `View` de 2px bajo el texto activo)
-- Separator "/": `color: rgba(255,255,255,0.4)`
+- **No separator between tabs** (removed 2026-07-06 to match the prototype — a previous version of this section still showed `Separator "/"`, kept for a "/" that no longer exists in the code)
 
 **"+" button (right):**
-- Circle `32×32px`, `borderRadius: 16`, `borderWidth: 2`, `borderColor: blanco`
-- Text "+": `color: blanco`, `fontSize: 20`
+- Just the glyph, no circle/border (circle removed 2026-07-06 to match the prototype — a previous version of this section still described a `32×32px` bordered circle)
+- Text "+": `color: blanco`, `fontSize: 28`, `fontWeight: 300`
 
 ---
 
@@ -149,7 +149,8 @@ Radius:  card=15, chip=10, button=8, tag=8, avatar=9999
 - **Sin círculo blanco de fondo** (se quitó el 2026-07-13 — antes tenían fondo blanco 44px, ahora son iconos directamente sobre la foto)
 
 **Each button:**
-- Glyph blanco (`♥/♡`, `★/☆`) o `compartir.png` con `tintColor: blanco`, `34×34px`
+- Touch target `44×44px` (raised from `34×34` on 2026-09-15 — audit `meta-2026-09-14-code-audit.md` B8, below the recommended accessibility minimum)
+- Glyph blanco (`♥/♡`, `★/☆`, `fontSize: 32`) o `compartir.png` con `tintColor: blanco`, `28×28px` — sized proportionally to the larger touch target, not 1:1 with it
 - No background, no border — `textShadow`/shadow sutil para legibilidad sobre la foto
 - On activation (like/save): outline → filled transition, spring animation `damping: 10, stiffness: 200`
 

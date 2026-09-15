@@ -177,39 +177,6 @@ Current DB supports brands partially. Gaps to fill:
 
 ## Pending
 
-### DB
-- [x] Rename `marcas.owner_id` to `marcas.profile_id` — ✅ applied; RLS and API routes updated
-- [x] Update RLS on `marcas` and `prendas` to use `profile_id` — ✅ applied
-- [ ] Brand subscription / plan table — fields: `brand_id`, `plan_type`, `billing_cycle`, `status`, `started_at`
-
-### Backend / API
-- [ ] Brand application submission endpoint — `POST /api/brand-applications`; saves form data (brand name, IG handle, category, email, password hash or encrypted credential) to `brand_applications`; does NOT create Supabase Auth user yet
-- [ ] Brand account creation on approval — called from `opa-admin` approve action; uses `supabase.auth.admin.createUser()` with stored credentials; creates `perfiles` row with `is_brand = true`; creates `marcas` row with `profile_id` = new profile id
-- [ ] Gate brand management API routes by `perfiles.is_brand = true` in addition to auth check
-
-### Frontend (opa-mobile)
-- [ ] Settings → "Registrar Marca" button — visible only on personal accounts (`is_brand = false`)
-- [ ] Brand registration form — fields: brand name, category, IG handle, email, password (for the future brand account); submits to `POST /api/brand-applications`
-- [x] Multi-account switcher — ✅ implemented 2026-08-07 as "remembered accounts on this device" (no linked-account data model exists between a personal profile and a brand account, so a true Instagram-style switch wasn't possible as originally worded). See `meta-2026-06-10-pending-features.md` for full detail.
-- [x] Brand profile screen — ✅ implemented (2026-07-06): `app/marca/[id].tsx`, standalone route (fuera del Tabs navigator, navbar calcada como en `app/user/[id].tsx`). Layout distinto al de usuario: banner + avatar-logo circular que lo pisa, nombre en mayúscula + badge `verificado_ondas.png` (solo si `marcas.verified`), `@handle · Marca`, bio, tags, stats **Seguidores / Outfits / Prendas** (sin "Seguidos"), botón Seguir full-width, y dos tabs icon-only (Grid `GridFinal` / Catálogo `bag`). Hook nuevo `useBrand(marcaId)` carga marca + prendas + (si hay `profile_id`) outfits y followers. Entry points enganchados: slider "Marcas" del home (`app/(tabs)/index.tsx`) y la fila de marca en `app/product/[id].tsx`. **Limitación real:** como todas las `marcas` (salvo Revés desde 2026-07-13) tienen `profile_id = null` (no existe onboarding de cuentas de marca todavía), la grilla de Outfits y el contador de Seguidores quedan vacíos y el botón Seguir es inerte para esas marcas — se activan solos cuando una marca tenga `profile_id`. El catálogo (prendas por `brand_id`) sí muestra datos reales.
-- [x] Modo `isOwn` en el perfil de marca — ✅ implementado (2026-07-13) junto con el login de marca: cuando `brand.profile_id === session.user.id` (la marca ve su propio perfil), `app/marca/[id].tsx` muestra un engranaje de configuración (→ `/settings`, donde está el logout) en vez de compartir/menú, oculta el botón "Seguir", y marca "perfil" como activo en la navbar. Hook `useMyBrand.ts` (marca donde `profile_id = userId`) + `<Redirect>` en `app/(tabs)/profile.tsx` cuando `profile.is_brand`.
-- [x] Catalog tab on brand profile — ✅ implemented (2026-07-06): grid 3-col de `prendas` filtradas por `brand_id`, tap → `product/[id]`. Parte de `app/marca/[id].tsx`.
-- [x] "Ya lo tenés" banner logic — ✅ implemented (2026-07-06): en `app/marca/[id].tsx` cruza `useWardrobe(session.user.id)` con `garment.brand_id === marcaId`; muestra "Tenés X prendas de MARCA en tu armario" solo si el usuario logueado tiene prendas de esa marca. Tap navega a `/(tabs)/wardrobe` (el filtro del armario por marca todavía no existe — ver abajo).
-- [ ] Wardrobe filtrado por marca — el banner "Ya lo tenés" hoy abre el armario sin filtro; falta que `app/(tabs)/wardrobe.tsx` acepte un param de marca y filtre
-- [x] Garment creation screen — ✅ done 2026-08-10, `app/brand/create-garment.tsx`. See `frontend-2026-06-06-screens-and-components.md` for full detail.
-- [x] Garment edit screen — ✅ done 2026-09-07, `app/brand/create-garment.tsx` in edit mode (`?id=`). See "Upload and edit garments" row above.
-- [x] Garment delete — ✅ resolved 2026-08-14, but as a product decision, not a real DELETE: `prendas` has `ON DELETE CASCADE` from `outfit_items`/`prendas_armario`/`prendas_guardadas`, so a real delete would silently break any outfit (the brand's own or someone else's) that used the garment, plus `productos_orden`/`reseñas` are `ON DELETE NO ACTION` so it would outright fail if the garment had any order/review history. Instead, added `prendas.descontinuada` (boolean) — a brand can toggle "Descontinuar"/"Reactivar" from `app/(tabs)/wardrobe.tsx` (`BrandCatalogView`); a discontinued garment disappears from the public catalog (`marca/[id].tsx`, `search.tsx`, "más de esta marca" on `product/[id].tsx`) and purchase is blocked there ("Ya no disponible"), but it stays intact everywhere it's already referenced. Real delete is now support-only, done from `opa-admin` with `service_role`. **Implementation note:** writing `descontinuada` goes through a new owner-scoped RLS UPDATE policy on `prendas`, not through `PATCH /api/brands/me/prendas/:id` — that endpoint's field whitelist (in `opa-backend`, not cloned this session) doesn't include the new column. See `database-2026-06-06-schema-and-seed.md` and `meta-2026-06-10-pending-features.md` for the follow-up needed once `opa-backend` is accessible again.
-- [ ] Brand custom size guide creation — **blocked on `opa-backend` access, not a mobile-side limitation.** `size_guides` RLS already lets a brand owner INSERT directly (`brand_id = auth.uid()`'s marca), but `size_guide_entries` (the actual per-size measurement rows) only allows `service_role` to INSERT — a brand can create the guide shell but not its measurements without going through a backend endpoint that doesn't exist yet. The 2026-08-10 create-garment form only lets brands pick from existing guides (10 OPA defaults + any brand-specific ones, none exist yet) for this reason — building a real "create your own guide" flow needs a new `opa-backend` endpoint (not buildable from an `opa-mobile`-only session; that repo isn't cloned here and there's no deploy access).
-- [x] Brand Home / metrics dashboard — ✅ done 2026-09-07, `BrandHomeView` inside `app/(tabs)/index.tsx`. See "Home / dashboard" row above and `frontend-2026-06-06-screens-and-components.md`.
-- [x] Buyer Q&A (ask a brand, brand answers) — ✅ done 2026-09-07. New `preguntas` table + `app/brand/questions.tsx` + entry points in `app/product/[id].tsx`/`app/marca/[id].tsx`. See "Answer buyer questions" row above.
-- [x] Let the asker see the answer to their own question — ✅ resolved 2026-09-07 (same day, different session), by making the Q&A public instead of building a private notification: the product page's "PREGUNTAS Y RESPUESTAS" section shows every question and its answer to anyone, including the original asker, right where they asked it.
-- [ ] Brand management panel screens — outfit publishing, order management still missing (metrics dashboard done, see above)
-- [x] Size selector shows unavailable sizes greyed out based on `stock_por_talle` — ✅ done 2026-08-10 as part of the `app/product/[id].tsx` redesign (same session, see `CLAUDE.md`)
-
-### opa-admin
-- [ ] Brand application review screen — shows pending applications with all submitted fields including email; approve creates the account, reject sends reason
-
-### Product / Business
-- [ ] Two-level verification flow — OPA admin sets `marcas.verified = true` after additional review (CUIT, social media, track record)
-- [ ] Brand follow system — decide if `follows` table is reused (`following_id = profile_id`) or a new `brand_follows` table is created
-- [ ] Monetization: define commission % and subscription plan tiers
+> **Note (2026-09-15):** this section used to duplicate `meta-2026-06-10-pending-features.md`, sometimes with more detail than the source of truth itself — the other 4 layer docs (frontend/backend/database/design) never did this, they only point here. All items that were still open have been migrated over (Database, Backend, Frontend, and Product Ideas sections); everything else listed here was already `[x]` and is documented in the sections above (Brand Onboarding, Public Brand Profile, What a Brand Can Do). Do not add new pending items here.
+>
+> All pending brand-system items are tracked in `meta-2026-06-10-pending-features.md`.

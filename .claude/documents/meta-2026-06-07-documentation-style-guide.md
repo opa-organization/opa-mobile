@@ -3,6 +3,10 @@
 This document defines how to create, edit, and maintain all documentation files inside `.claude/documents/`. It is the authoritative source of truth for documentation standards in the OPA project. Read this before creating or editing any document.
 
 > ⚠️ **Language note:** Documents written before 2026-06-07 are in Spanish. All new documents must be written in English. Existing Spanish documents should be migrated to English when they are next edited for a substantive update.
+>
+> **Why English, not Spanish (confirmed 2026-09-15):** measured empirically against 4 real paragraph pairs from this project's own docs (same content, same level of technical detail, tokenized with a BPE tokenizer comparable to Claude's) — English consistently used fewer tokens, averaging **~13-15% cheaper** than the equivalent Spanish text. This isn't a stylistic preference: BPE vocabularies are trained on corpora dominated by English, so Spanish text (accented characters, richer verb conjugations, longer average word length) tends to fragment into more sub-word tokens for the same information. Every document read into context on every future session costs real tokens — this compounds. **This is a decision about the language of prose going forward, not a mandate to retroactively translate the large volume of Spanish content already written** (real sessions have written most substantive updates in Spanish since well after this guide was created, in practice — see the "Practical note" below); that migration is its own separate, deliberate task if it's ever undertaken, not something to attempt piecemeal.
+>
+> **Practical note:** despite this guide, in practice most sessions after 2026-06-07 continued writing substantive updates to these documents in Spanish (the project's working language — see `CLAUDE.md`). As of 2026-09-15, `database-2026-06-06-schema-and-seed.md` is almost entirely Spanish, `frontend-2026-06-06-screens-and-components.md` is heavily mixed, and even `design-2026-06-06-visual-system.md` has Spanish fragments in later additions. `backend-2026-06-15-api-layer.md`, `product-2026-06-10-brand-system.md`, and `product-2026-06-15-admin-panel.md` are the documents that actually stayed in English. Going forward, prefer English for new substantive content in these documents given the measured token cost — but don't let chasing that ideal block getting a real update written promptly in whichever language is faster in the moment.
 
 > ⚠️ **Known error in `meta-2026-06-06-how-to-use-documents.md`:** The filename format example shows `YYYY-DD-MM` but the correct format is `YYYY-MM-DD`. All existing files use the correct format. This style guide supersedes the older meta document.
 
@@ -239,6 +243,8 @@ Options:
 | `meta-2026-06-10-pending-features.md` | Single source of truth for all unimplemented features and product ideas |
 | `product-2026-06-10-brand-system.md` | Brand model: onboarding, profile, panel, sales model, stock, verification, monetization |
 | `backend-2026-06-15-api-layer.md` | Hono API on Supabase Edge Functions: stack, endpoints, auth middleware, pending routes |
+| `product-2026-06-15-admin-panel.md` | Internal admin panel (`opa-admin`): purpose, stack, screens, access model |
+| `meta-2026-09-14-code-audit.md` | Code quality audit of `main` — bad practices, dead code, dependency cleanup; complete as of 2026-09-15 |
 
 ---
 

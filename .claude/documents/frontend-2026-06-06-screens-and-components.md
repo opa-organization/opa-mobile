@@ -366,6 +366,8 @@ Settings sub-screens (editar perfil, seguridad, notificaciones, preferencias de 
 
 ## Components
 
+> **Note (2026-09-15):** this section was rewritten to match the actual `components/` tree after the code audit (`meta-2026-09-14-code-audit.md`, B0–B2) deleted 12 unused files — `BottomTabBar.tsx`, `OutfitBottomBar.tsx`, `OutfitGarmentLabel.tsx`, `ProfileHeader.tsx`, `ProfileNavbar.tsx`, `ProfileStats.tsx`, `OutfitGrid.tsx`, `Button.tsx`, and `Badge.tsx` among them. The previous version of this section still listed all of those as existing components — always cross-check against `components/**/*.tsx` before trusting this list.
+
 ### Navigation
 **`components/navigation/BottomNavBar.tsx`**
 - 5 flat equal tabs: Home · Outfits · Search · Wardrobe · Profile
@@ -377,32 +379,30 @@ Settings sub-screens (editar perfil, seguridad, notificaciones, preferencias de 
 - `paddingBottom` via `useSafeAreaInsets().bottom` (not hardcoded)
 - No text labels
 - Registered in `app/(tabs)/_layout.tsx` as `tabBar={(props) => <BottomNavBar {...props} />}`
-- **Ícono condicional del tab Wardrobe (2026-08-07):** lee `profile.is_brand` de `useAuthStore`. Si es una cuenta de marca, el tab `wardrobe` muestra `assets/bag_negra.png` / `bag_rosa.png` (mismos assets que el tab "Catálogo" de `app/marca/[id].tsx`) en vez de `assets/nav/armario.png` / `armario_rosa.png` — la ruta sigue siendo `wardrobe`, solo cambia el ícono; el contenido detrás lo resuelve `app/(tabs)/wardrobe.tsx` (ver sección Wardrobe más arriba).
+- **Conditional Wardrobe tab icon (2026-08-07):** reads `profile.is_brand` from `useAuthStore`. For a brand account, the `wardrobe` tab shows `assets/bag_negra.png` / `bag_rosa.png` (same assets as the "Catálogo" tab in `app/marca/[id].tsx`) instead of `assets/nav/armario.png` / `armario_rosa.png` — the route is still `wardrobe`, only the icon changes; the screen content is resolved by `app/(tabs)/wardrobe.tsx` (see Wardrobe section above).
 
-> `BottomTabBar.tsx` still exists but is unused (logic stripped). `BottomNavBar.tsx` is the active component.
+**`components/navigation/StandaloneBottomNavBar.tsx`** (new, 2026-09-14)
+Shared nav bar for the two standalone screens (`app/user/[id].tsx`, `app/marca/[id].tsx`) that live outside the `Tabs` navigator and can't reuse `BottomNavBar` directly. Replaced two independent copy-pasted implementations. Takes a `showActiveHighlight` prop because the two screens weren't pixel-identical before unifying (`user/[id].tsx` had a pink circle behind the active icon, `marca/[id].tsx` never did) — preserved as a prop instead of silently unifying the visual difference.
 
 ### Home
 - **`SectionHeader`**: UPPERCASE bold title (Merge One) + clickable pink arrow →
 - **`HorizontalSlider`**: generic horizontal `ScrollView` wrapper
-- **`BrandsSlider`**: brand-specific slider
+- **`BrandsSlider`**: brand-specific slider — rewritten 2026-09-14 to match the Home's actual card design (110×110, black border, brand name as text fallback) before being wired in; its own fallback used to be an external `picsum.photos` stock photo
 
 ### Outfit
-- **`OutfitScrollItem`**: full item for the vertical feed
+- **`OutfitScrollItem`**: full item for the vertical feed (garment chips, connector lines, like/save/share, price bar)
 - **`OutfitCard`**: outfit card for the carousel
-- **`OutfitGarmentLabel`**: floating chip with circular thumbnail + name + price
-- **`OutfitBottomBar`**: white bottom panel with total price + "View outfit" button
+
+### Product
+- **`ZoomableImage`** (2026-08-10): full-screen double-tap zoom viewer for `app/product/[id].tsx`. No `PanResponder` (a pinch/pan version got the RN Web responder system stuck with no `GestureHandlerRootView` mounted) — double-tap only, same `onPress` mechanism as the rest of the app.
 
 ### Profile
-- **`ProfileHeader`**: avatar + username + name + bio + tags
-- **`ProfileStats`**: stats row
-- **`ProfileNavbar`**: internal Grid/Favorites/Orders tabs with active indicator
-- **`OutfitGrid`**: 3-column outfit grid
+- **`FollowListRow`** (2026-09-07): avatar + username, inline Seguir/Siguiendo button (`e.stopPropagation()` so the button doesn't also trigger row navigation), used by `app/followers/[id].tsx`.
 
 ### UI Primitives
-- **`Button`**: primary/secondary button with variants
-- **`Tag`**: style chip with border
-- **`Avatar`**: circular image with fallback to initial letter
-- **`Badge`**: numeric indicator
+- **`Tag`**: style chip with border — no real consumer yet (checked 2026-09-14, kept pending a use case)
+- **`Avatar`**: circular image with fallback to an initial letter. Rewritten 2026-09-14 (audit B1) to accept `label`/color/size/font props instead of a single hardcoded fallback style — the original component's generic-icon fallback didn't match any of the 8 real screens using the copy-pasted pattern before (each had its own size/color/font combo), so adopting it as-is would have been a visual regression.
+- **`ErrorState`** (2026-09-15, audit B5): shared "Uy, algo salió mal. Probá de nuevo." message + "Reintentar" button, paired with `hooks/useSupabaseQuery.ts`. `variant="dark"` for the 3 full-bleed black outfit scrolls.
 
 ---
 

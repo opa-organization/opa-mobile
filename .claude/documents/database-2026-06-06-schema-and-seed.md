@@ -1,6 +1,10 @@
 # Database — Schema & Seed Data
 
+This document covers the full Supabase schema: table definitions, RLS policies, triggers, storage buckets, SQL functions, and seed data for the OPA project.
+
 _Última actualización: 2026-09-14_
+
+---
 
 ## Proyecto Supabase
 - **Project ID:** `vecnktrbjolahcalkbml`
@@ -609,6 +613,6 @@ Devuelve el catálogo de una marca (mismas columnas que `prendas`, sin `search_v
 
 ---
 
-## Pendientes
+## Pending
 
 > All pending database items are tracked in `meta-2026-06-10-pending-features.md`. Do not add new pending items here.
