@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import {
-  View, Text, StyleSheet, useWindowDimensions, TouchableOpacity, ImageBackground,
+  View, Text, StyleSheet, useWindowDimensions, TouchableOpacity, ImageBackground, Animated,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
@@ -52,6 +52,24 @@ export function OutfitScrollItem({ outfit, isActive, height }: Props) {
   const creatorId = outfit.creator_id ?? ''
   const isOwnOutfit = session?.user.id === creatorId
   const { following, toggle: toggleFollow } = useFollow(creatorId)
+
+  // Spring "pop" en el ícono al togglear like/save (spec de design-2026-06-06-visual-system.md:
+  // damping 10, stiffness 200) — se dispara al tocar, no en un useEffect atado a
+  // liked/saved, para no re-disparar en la carga inicial del estado.
+  const likeScale = useRef(new Animated.Value(1)).current
+  const saveScale = useRef(new Animated.Value(1)).current
+  function pop(value: Animated.Value) {
+    value.setValue(0.7)
+    Animated.spring(value, { toValue: 1, damping: 10, stiffness: 200, useNativeDriver: true }).start()
+  }
+  function handleToggleLike() {
+    pop(likeScale)
+    toggleLike()
+  }
+  function handleToggleSave() {
+    pop(saveScale)
+    toggleSave()
+  }
 
   const totalPrice = outfit.garments?.reduce((sum, item) => sum + (item.garment?.price ?? 0), 0) ?? 0
   const creator = outfit.creator
@@ -123,20 +141,20 @@ export function OutfitScrollItem({ outfit, isActive, height }: Props) {
           {!viewerIsBrand && (
             <>
               <TouchableOpacity
-                onPress={toggleLike}
+                onPress={handleToggleLike}
                 style={styles.actionBtn}
                 accessibilityLabel="Me gusta"
                 accessibilityRole="button"
               >
-                <Text style={[styles.actionIcon, liked && styles.actionIconLiked]}>{liked ? '♥' : '♡'}</Text>
+                <Animated.Text style={[styles.actionIcon, liked && styles.actionIconLiked, { transform: [{ scale: likeScale }] }]}>{liked ? '♥' : '♡'}</Animated.Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={toggleSave}
+                onPress={handleToggleSave}
                 style={styles.actionBtn}
                 accessibilityLabel="Guardar"
                 accessibilityRole="button"
               >
-                <Text style={[styles.actionIcon, saved && styles.actionIconLiked]}>{saved ? '★' : '☆'}</Text>
+                <Animated.Text style={[styles.actionIcon, saved && styles.actionIconLiked, { transform: [{ scale: saveScale }] }]}>{saved ? '★' : '☆'}</Animated.Text>
               </TouchableOpacity>
             </>
           )}

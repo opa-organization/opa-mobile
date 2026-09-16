@@ -30,6 +30,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { timeAgo } from '../../lib/timeAgo'
 import { ZoomableImage } from '../../components/product/ZoomableImage'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Toast } from '../../components/ui/Toast'
 import { colors } from '../../constants/colors'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
@@ -549,11 +550,7 @@ export default function ProductDetail() {
         </View>
       )}
 
-      {toast && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      )}
+      <Toast message={toast} bottom={90} />
 
       {/* Size Guide Sheet */}
       <SizeGuideSheet
@@ -849,14 +846,6 @@ const styles = StyleSheet.create({
   },
   ctaBtnDisabled: { backgroundColor: colors.grisMedio },
   ctaBtnText: { color: colors.blanco, fontSize: 15, fontWeight: '700' },
-
-  toast: {
-    position: 'absolute', bottom: 90, left: spacing.lg, right: spacing.lg,
-    backgroundColor: colors.negro, borderRadius: radius.chip,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
-    alignItems: 'center',
-  },
-  toastText: { color: colors.blanco, fontSize: 13, fontWeight: '600' },
 
   // Sheet
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },

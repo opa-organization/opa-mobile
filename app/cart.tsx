@@ -9,6 +9,7 @@ import { spacing } from '../constants/spacing'
 import { radius } from '../constants/radius'
 import { useCart, CartRow } from '../hooks/useCart'
 import { STORAGE_BASE_URL as STORAGE } from '../constants/storage'
+import { Toast } from '../components/ui/Toast'
 
 // Vista de carrito muy básica y temporal: permite ver/editar/sacar items de
 // `productos_carrito`. No hay checkout todavía — eso es un pendiente aparte.
@@ -68,11 +69,7 @@ export default function CartScreen() {
         </View>
       )}
 
-      {error && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>{error}</Text>
-        </View>
-      )}
+      <Toast message={error} />
     </SafeAreaView>
   )
 }
@@ -172,12 +169,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkoutBtnText: { color: colors.grisOscuro, fontSize: 14, fontWeight: '700' },
-
-  toast: {
-    position: 'absolute', bottom: 24, left: spacing.lg, right: spacing.lg,
-    backgroundColor: colors.negro, borderRadius: radius.chip,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
-    alignItems: 'center',
-  },
-  toastText: { color: colors.blanco, fontSize: 13, fontWeight: '600' },
 })

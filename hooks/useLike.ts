@@ -26,8 +26,18 @@ export function useLike(outfitId: string, initialCount: number) {
   // mano, así no hay drift entre lo que optimistamos localmente en toggle()
   // y lo que terminó quedando en la DB.
   useEffect(() => {
+    // Defensivo: si un canal con este mismo topic quedó suscripto de una
+    // instancia anterior del componente (ej. Fast Refresh mientras la página
+    // ya estaba montada, o un remontaje rápido del FlatList) sacarlo antes de
+    // crear uno nuevo — si no, `.on()` sobre un canal ya suscripto tira
+    // "cannot add postgres_changes callbacks ... after subscribe()" (mismo
+    // bug ya encontrado y arreglado con este mismo fix en useNotifications.ts).
+    const topic = `outfit-likes-${outfitId}`
+    const existing = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`)
+    if (existing) supabase.removeChannel(existing)
+
     const channel = supabase
-      .channel(`outfit-likes-${outfitId}`)
+      .channel(topic)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'outfits', filter: `id=eq.${outfitId}` },

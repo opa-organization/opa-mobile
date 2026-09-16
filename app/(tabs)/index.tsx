@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity,
   StatusBar, ActivityIndicator, Animated, FlatList,
@@ -23,11 +23,16 @@ import { SectionHeader } from '../../components/home/SectionHeader'
 import { BrandsSlider } from '../../components/home/BrandsSlider'
 import { Avatar } from '../../components/ui/Avatar'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Skeleton } from '../../components/ui/Skeleton'
 import { Brand, Garment, Outfit } from '../../types'
 
 import { useAppWidth } from '../../constants/layout'
 import { STORAGE_BASE_URL as STORAGE } from '../../constants/storage'
 import { initials } from '../../lib/text'
+
+// Envuelve el `Image` de expo-image para poder animarle el `transform` — el
+// `Animated.Image` de react-native core es otro componente, no sirve acá.
+const AnimatedImage = Animated.createAnimatedComponent(Image)
 
 // Carousel config
 const CARD_W = 220
@@ -87,6 +92,28 @@ function OutfitCarousel({ outfits, onPress }: { outfits: Outfit[]; onPress: (id:
   )
 }
 
+// Placeholder de la primera carga del Home de consumidor — imita la forma del
+// carrusel de outfits + fila de prendas en vez de un spinner centrado.
+function HomeLoadingSkeleton() {
+  return (
+    <View style={{ paddingHorizontal: spacing.lg }}>
+      <Skeleton width={100} height={14} borderRadius={4} style={{ marginTop: spacing.lg, marginBottom: spacing.md }} />
+      <Skeleton width={CARD_W} height={CARD_H} borderRadius={radius.card} style={{ alignSelf: 'center' }} />
+
+      <Skeleton width={140} height={14} borderRadius={4} style={{ marginTop: spacing.xl, marginBottom: spacing.md }} />
+      <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        {[1, 2, 3].map((i) => (
+          <View key={i}>
+            <Skeleton width={120} height={150} borderRadius={radius.card} />
+            <Skeleton width={90} height={10} borderRadius={4} style={{ marginTop: 6 }} />
+            <Skeleton width={50} height={10} borderRadius={4} style={{ marginTop: 4 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
+
 // ─── Home ────────────────────────────────────────────────────────────────────
 // Las cuentas de marca ven un panel de gestión (tráfico, preguntas, sus
 // outfits/prendas, opiniones) en vez del feed de descubrimiento — misma idea
@@ -103,11 +130,26 @@ function NotificationBell() {
   const router = useRouter()
   const session = useAuthStore((s) => s.session)
   const { unreadCount } = useNotifications(session?.user.id)
+  const scale = useRef(new Animated.Value(1)).current
+  const prevCount = useRef(unreadCount)
+
+  // Pulso cuando llega una notificación nueva en vivo (unreadCount sube) — no
+  // se dispara en la carga inicial ni al marcar como leída (unreadCount baja).
+  useEffect(() => {
+    if (unreadCount > prevCount.current) {
+      Animated.sequence([
+        Animated.spring(scale, { toValue: 1.3, damping: 10, stiffness: 200, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, damping: 10, stiffness: 200, useNativeDriver: true }),
+      ]).start()
+    }
+    prevCount.current = unreadCount
+  }, [unreadCount])
+
   return (
     <TouchableOpacity style={styles.bellBtn} onPress={() => router.push('/notifications')} hitSlop={8}>
-      <Image
+      <AnimatedImage
         source={{ uri: `${STORAGE}/${unreadCount > 0 ? 'campana_rosa' : 'campana_negra'}.png` }}
-        style={styles.bellIcon}
+        style={[styles.bellIcon, { transform: [{ scale }] }]}
         contentFit="contain"
       />
     </TouchableOpacity>
@@ -153,7 +195,7 @@ function ConsumerHomeView() {
         </View>
 
         {loading ? (
-          <ActivityIndicator color={colors.rosaOpa} style={{ marginTop: 60 }} />
+          <HomeLoadingSkeleton />
         ) : error ? (
           <ErrorState onRetry={refetch} />
         ) : (

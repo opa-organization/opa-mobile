@@ -25,8 +25,16 @@ export function useSave(outfitId: string, initialCount: number) {
   // el propio). Se toma el valor confirmado de la fila en vez de sumar/restar
   // a mano, así no hay drift entre lo que optimistamos en toggle() y la DB.
   useEffect(() => {
+    // Defensivo: mismo fix ya aplicado en useLike.ts / useNotifications.ts —
+    // sacar un canal con este topic que haya quedado suscripto de una
+    // instancia anterior (Fast Refresh, remontaje rápido) antes de crear uno
+    // nuevo, para que `.on()` nunca corra sobre un canal ya suscripto.
+    const topic = `outfit-saves-${outfitId}`
+    const existing = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`)
+    if (existing) supabase.removeChannel(existing)
+
     const channel = supabase
-      .channel(`outfit-saves-${outfitId}`)
+      .channel(topic)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'outfits', filter: `id=eq.${outfitId}` },

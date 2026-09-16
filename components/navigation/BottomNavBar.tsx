@@ -1,5 +1,5 @@
-import React from 'react'
-import { View, TouchableOpacity, StyleSheet } from 'react-native'
+import React, { useRef } from 'react'
+import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native'
 import { Image } from 'expo-image'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs'
@@ -48,25 +48,51 @@ export function BottomNavBar({ state, navigation }: BottomTabBarProps) {
         }
 
         return (
-          <TouchableOpacity
+          <TabButton
             key={route.key}
             onPress={onPress}
-            style={styles.tab}
-            activeOpacity={0.7}
-            accessibilityLabel={label}
-            accessibilityRole="tab"
-          >
-            <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
-              <Image
-                source={{ uri: isFocused ? icons?.active : icons?.default }}
-                style={styles.icon}
-                contentFit="contain"
-              />
-            </View>
-          </TouchableOpacity>
+            label={label}
+            iconUri={isFocused ? icons?.active : icons?.default}
+            isFocused={isFocused}
+          />
         )
       })}
     </View>
+  )
+}
+
+// Bounce sutil al tocar un tab: achica al presionar, rebota de vuelta al soltar.
+function TabButton({
+  onPress, label, iconUri, isFocused,
+}: {
+  onPress: () => void
+  label?: string
+  iconUri?: string
+  isFocused: boolean
+}) {
+  const scale = useRef(new Animated.Value(1)).current
+
+  function onPressIn() {
+    Animated.spring(scale, { toValue: 0.85, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+  }
+  function onPressOut() {
+    Animated.spring(scale, { toValue: 1, damping: 10, stiffness: 200, useNativeDriver: true }).start()
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={styles.tab}
+      activeOpacity={0.7}
+      accessibilityLabel={label}
+      accessibilityRole="tab"
+    >
+      <Animated.View style={[styles.iconWrap, isFocused && styles.iconWrapActive, { transform: [{ scale }] }]}>
+        <Image source={{ uri: iconUri }} style={styles.icon} contentFit="contain" />
+      </Animated.View>
+    </TouchableOpacity>
   )
 }
 
