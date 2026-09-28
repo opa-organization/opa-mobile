@@ -14,6 +14,7 @@ import { useAppWidth } from '../../constants/layout'
 import { useProfile } from '../../hooks/useProfile'
 import { useOutfits } from '../../hooks/useOutfits'
 import { useFollow } from '../../hooks/useFollow'
+import { useMutualFollowers } from '../../hooks/useMutualFollowers'
 import { useAuthStore } from '../../store/useAuthStore'
 import { STORAGE_BASE_URL } from '../../constants/storage'
 import { Avatar } from '../../components/ui/Avatar'
@@ -34,6 +35,7 @@ export default function UserProfileScreen() {
   const { profile, loading: profileLoading, error: profileError, refetch: refetchProfile } = useProfile(id)
   const { outfits, loading: outfitsLoading, error: outfitsError, refetch: refetchOutfits } = useOutfits(id)
   const { following, toggle: toggleFollow } = useFollow(id ?? '')
+  const { preview: mutualPreview, totalCount: mutualCount } = useMutualFollowers(id)
 
   const isOwnProfile = !!session && session.user.id === id
 
@@ -125,6 +127,32 @@ export default function UserProfileScreen() {
             </View>
           )}
         </View>
+
+        {/* Conexiones en común — cuentas que el viewer sigue y que siguen a este perfil */}
+        {mutualCount > 0 && mutualPreview.length > 0 && (
+          <TouchableOpacity
+            style={styles.mutualRow}
+            activeOpacity={0.6}
+            onPress={() => router.push(`/followers/${id}?type=followers`)}
+          >
+            <View style={styles.mutualAvatars}>
+              {mutualPreview.map((p, i) => (
+                <Avatar
+                  key={p.id}
+                  uri={p.avatar_url}
+                  label={p.username}
+                  size={22}
+                  fallbackFontSize={10}
+                  style={[styles.mutualAvatar, i > 0 && styles.mutualAvatarOverlap]}
+                />
+              ))}
+            </View>
+            <Text style={styles.mutualText} numberOfLines={2}>
+              Seguido por <Text style={styles.mutualBold}>@{mutualPreview[0].username}</Text>
+              {mutualCount > 1 ? ` y ${mutualCount - 1} más que seguís` : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Follow button — oculto cuando quien mira es una cuenta de marca */}
         {!viewerIsBrand && (
@@ -236,6 +264,19 @@ const styles = StyleSheet.create({
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   tag: { borderWidth: 1, borderColor: colors.bordeTag, borderRadius: radius.tag, paddingHorizontal: 10, paddingVertical: 3 },
   tagText: { fontSize: 11, color: colors.grisOscuro },
+
+  mutualRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  mutualAvatars: { flexDirection: 'row' },
+  mutualAvatar: { borderWidth: 1.5, borderColor: colors.blanco },
+  mutualAvatarOverlap: { marginLeft: -8 },
+  mutualText: { flex: 1, fontSize: 12, color: colors.grisOscuro },
+  mutualBold: { fontWeight: '700', color: colors.negro },
 
   followRow: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   followBtn: {

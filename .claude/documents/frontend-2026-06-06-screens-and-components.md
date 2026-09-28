@@ -286,6 +286,7 @@ Accessible from Settings → "Mis medidas" row.
 - Param: `id` (userId). Si `id` === el usuario logueado, redirige a `/(tabs)/profile` (este screen es exclusivamente para perfiles ajenos).
 - Top bar: flecha de volver (`flecha.png`) y compartir (`compartir.png`), ambos assets reales de Supabase Storage — **no** texto/emoji. El ícono de menú (`···`) sí quedó como texto porque no hay ningún asset de menú/opciones en el bucket `assets/` (se buscó explícitamente).
 - Header: avatar + stats (Seguidores/Seguidos/Outfits — sin "Guardados", que es privado), nombre, handle, bio, ig, tags.
+- **Mutual connections row (2026-09-28):** between the bio block and the Follow button, shown only when the viewer follows ≥1 account that also follows this profile. Up to 3 overlapping 22px `Avatar`s (white 1.5px border, `-8` left margin) + "Seguido por **@x** y N más que seguís" (the "y N más…" part omitted when N = 0). Tapping the row opens `/followers/[id]?type=followers`. Data from `hooks/useMutualFollowers.ts`. Shown to brand viewers too (it's read-only info, unlike the Follow button).
 - Botón **Seguir/Siguiendo** con `useFollow` (mismo hook que el scroll de outfits, sin campanita de notificaciones — ver pendientes).
 - Un solo tab (grid, sin favoritos/pedidos — esos son privados del dueño), **centrado** en la tab bar (no pegado a la izquierda), sección "Outfits creados", grid 3 columnas con like count, tap → `user-outfits.tsx` con `userId` + `startIndex`.
 - Iconos de compartir y menú arriba a la derecha son solo visuales por ahora, sin acción — ver pendientes.
