@@ -37,7 +37,12 @@ export interface CreateGarmentPayload {
   category: string | null
   style: string | null
   image_url: string | null
-  color: string | null
+  // Opcional: create-garment.tsx ya no lo manda por acá — los 4 campos de color
+  // (color/color_id/color_secundario/color_secundario_id) se escriben juntos
+  // directo a Supabase, porque la whitelist del PATCH de la API no conoce las
+  // columnas nuevas y escribirlos por separado podría violar el CHECK de
+  // "estándar O propio" a mitad de camino.
+  color?: string | null
   available_sizes: string[]
   stock_por_talle: Record<string, number> | null
   size_guide_id: string | null

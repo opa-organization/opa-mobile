@@ -40,7 +40,13 @@ export interface Garment {
   category: string | null
   style: string | null
   image_url: string | null
+  // Color principal/secundario: cada posición es un color estándar (texto,
+  // constants/garmentColors.ts) O un color propio de la marca (id en
+  // marca_colores) — nunca las dos a la vez (CHECK en la DB).
   color: string | null
+  color_id: string | null
+  color_secundario: string | null
+  color_secundario_id: string | null
   available_sizes: string[]
   size_guide_id: string | null
   sale_mode: 'direct' | 'redirect'
@@ -49,6 +55,17 @@ export interface Garment {
   descontinuada: boolean
   created_at: string
   brand?: Brand
+}
+
+// marca_colores — paleta propia de una marca (creada desde "Otro" en Crear prenda,
+// administrada en app/brand/colors.tsx)
+export interface BrandColor {
+  id: string
+  brand_id: string
+  name: string
+  hex: string
+  sort_order: number
+  created_at: string
 }
 
 export interface Outfit {

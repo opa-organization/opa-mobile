@@ -45,7 +45,7 @@ export default function ProductDetail() {
   const router = useRouter()
   const screenWidth = useAppWidth()
 
-  const [garment, setGarment] = useState<Garment & { brand?: Brand } | null>(null)
+  const [garment, setGarment] = useState<GarmentWithColors | null>(null)
   const [related, setRelated] = useState<Garment[]>([])
   const [loading, setLoading] = useState(true)
   const [garmentError, setGarmentError] = useState(false)
@@ -95,14 +95,18 @@ export default function ProductDetail() {
     setGarmentError(false)
     const { data, error } = await supabase
       .from('prendas')
-      .select('*, brand:marcas(*)')
+      // Colores propios de la marca embebidos por FK (nombre + hex), para los
+      // casos en que el principal/secundario no es un color estándar.
+      .select(`*, brand:marcas(*),
+        color_custom:marca_colores!prendas_color_custom_fk(name, hex),
+        color_secundario_custom:marca_colores!prendas_color_secundario_custom_fk(name, hex)`)
       .eq('id', garmentId)
       .maybeSingle()
     if (error) {
       setGarmentError(true)
       logError('ProductDetail.fetchGarment', error.message)
     } else {
-      setGarment(data as (Garment & { brand?: Brand }) | null)
+      setGarment(data as unknown as GarmentWithColors | null)
     }
     setSelectedSize(null)
     setQuantity(1)
@@ -308,12 +312,12 @@ export default function ProductDetail() {
           <Text style={styles.garmentName}>{garment.name}</Text>
           <View style={styles.priceRow}>
             <Text style={styles.price}>${garment.price.toLocaleString('es-AR')}</Text>
-            {garment.color && (
-              <View style={styles.colorTag}>
-                <View style={[styles.colorDot, { backgroundColor: colorToHex(garment.color) }]} />
-                <Text style={styles.colorText}>{garment.color}</Text>
+            {garmentColors(garment).map((c, i) => (
+              <View key={`${c.name}-${i}`} style={styles.colorTag}>
+                <View style={[styles.colorDot, { backgroundColor: c.hex }]} />
+                <Text style={styles.colorText}>{c.name}</Text>
               </View>
-            )}
+            ))}
           </View>
 
           {/* Description */}
@@ -569,11 +573,25 @@ export default function ProductDetail() {
   )
 }
 
-// Swatch de color de la prenda: usa la paleta estandarizada compartida con el
-// selector de create-garment.tsx/search.tsx. Un color cargado como "Otro"
-// (texto libre) no tiene hex conocido y cae al gris genérico.
-function colorToHex(colorName: string): string {
-  return GARMENT_COLOR_HEX[colorName] ?? colors.grisMedio
+type EmbeddedColor = { name: string; hex: string } | null
+type GarmentWithColors = Garment & {
+  brand?: Brand
+  color_custom?: EmbeddedColor
+  color_secundario_custom?: EmbeddedColor
+}
+
+// Principal y secundario (en ese orden) con su swatch: un color estándar toma el
+// hex de la paleta compartida (constants/garmentColors.ts); uno propio de la
+// marca viene embebido de marca_colores con su propio hex.
+function garmentColors(g: GarmentWithColors): { name: string; hex: string }[] {
+  const out: { name: string; hex: string }[] = []
+  const add = (std: string | null, custom: EmbeddedColor | undefined) => {
+    if (std) out.push({ name: std, hex: GARMENT_COLOR_HEX[std] ?? colors.grisMedio })
+    else if (custom) out.push(custom)
+  }
+  add(g.color, g.color_custom)
+  add(g.color_secundario, g.color_secundario_custom)
+  return out
 }
 
 // ─── SizeGuideSheet ───────────────────────────────────────────────────────────
@@ -746,7 +764,7 @@ const styles = StyleSheet.create({
   brandName: { fontSize: 13, color: colors.grisOscuro, fontWeight: '500' },
 
   garmentName: { fontSize: 22, fontWeight: '800', color: colors.negro, marginBottom: spacing.xs },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   price: { fontSize: 20, fontWeight: '700', color: colors.rosaOpa },
   colorTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   colorDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: colors.grisBorde },

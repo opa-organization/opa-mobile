@@ -75,12 +75,16 @@ export default function SearchScreen() {
   const [outfitSort, setOutfitSort] = useState<OutfitSort>('popular')
   const [prendaSort, setPrendaSort] = useState<PrendaSort>('recientes')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // Color principal y secundario son dos filtros independientes (a pedido del
+  // usuario): si se usan los dos, la prenda tiene que cumplir ambos.
   const [colorFilters, setColorFilters] = useState<string[]>([])
+  const [secondaryColorFilters, setSecondaryColorFilters] = useState<string[]>([])
   const [styleFilters, setStyleFilters] = useState<string[]>([])
   // Color/Estilo van colapsados por default dentro del panel de filtros — a pedido
   // del usuario, no quiere ver los 16 colores + todos los estilos apenas abre
   // "Filtros". Se expanden recién al tocar su propio header.
   const [colorSectionOpen, setColorSectionOpen] = useState(false)
+  const [secondaryColorSectionOpen, setSecondaryColorSectionOpen] = useState(false)
   const [styleSectionOpen, setStyleSectionOpen] = useState(false)
   const [outfits, setOutfits] = useState<Outfit[]>([])
   const [garments, setGarments] = useState<(Garment & { brand?: Brand })[]>([])
@@ -131,6 +135,9 @@ export default function SearchScreen() {
   function toggleColorFilter(value: string) {
     setColorFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
   }
+  function toggleSecondaryColorFilter(value: string) {
+    setSecondaryColorFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+  }
   function toggleStyleFilter(value: string) {
     setStyleFilters((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
   }
@@ -139,6 +146,7 @@ export default function SearchScreen() {
     setMaxPrice('')
     setPrendaSort('recientes')
     setColorFilters([])
+    setSecondaryColorFilters([])
     setStyleFilters([])
   }
 
@@ -151,9 +159,10 @@ export default function SearchScreen() {
     oSort: OutfitSort,
     pSort: PrendaSort,
     colors: string[],
+    secondaryColors: string[],
     stylesArr: string[],
   ) => {
-    if (!text.trim() && !tag && !min.trim() && !max.trim() && colors.length === 0 && stylesArr.length === 0) {
+    if (!text.trim() && !tag && !min.trim() && !max.trim() && colors.length === 0 && secondaryColors.length === 0 && stylesArr.length === 0) {
       setOutfits([])
       setGarments([])
       setAccounts([])
@@ -203,6 +212,10 @@ export default function SearchScreen() {
           const colorSet = new Set(colors.map((c) => c.toLowerCase()))
           results = results.filter((g) => g.color && colorSet.has(g.color.toLowerCase()))
         }
+        if (secondaryColors.length > 0) {
+          const secondarySet = new Set(secondaryColors.map((c) => c.toLowerCase()))
+          results = results.filter((g) => g.color_secundario && secondarySet.has(g.color_secundario.toLowerCase()))
+        }
         if (stylesArr.length > 0) {
           const styleSet = new Set(stylesArr.map((s) => s.toLowerCase()))
           results = results.filter((g) => g.style && styleSet.has(g.style.toLowerCase()))
@@ -236,10 +249,10 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      runSearch(query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, styleFilters)
+      runSearch(query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, secondaryColorFilters, styleFilters)
     }, 350)
     return () => clearTimeout(timeout)
-  }, [query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, styleFilters, runSearch])
+  }, [query, activeTag, tab, minPrice, maxPrice, outfitSort, prendaSort, colorFilters, secondaryColorFilters, styleFilters, runSearch])
 
   const allTags = tab === 'prendas' ? CATEGORY_TAGS.map((c) => c.key) : outfitTags
 
@@ -285,8 +298,10 @@ export default function SearchScreen() {
               if (t !== 'prendas') {
                 setFiltersOpen(false)
                 setColorFilters([])
+                setSecondaryColorFilters([])
                 setStyleFilters([])
                 setColorSectionOpen(false)
+                setSecondaryColorSectionOpen(false)
                 setStyleSectionOpen(false)
               }
             }}
@@ -382,29 +397,36 @@ export default function SearchScreen() {
             ))}
           </View>
 
-          <TouchableOpacity
-            style={styles.collapsibleHeader}
-            onPress={() => setColorSectionOpen((o) => !o)}
-          >
-            <Text style={[styles.filterSectionLabel, styles.collapsibleLabel]}>
-              Color{colorFilters.length > 0 ? ` (${colorFilters.length})` : ''}
-            </Text>
-            <Text style={styles.collapsibleChevron}>{colorSectionOpen ? '⌃' : '⌄'}</Text>
-          </TouchableOpacity>
-          {colorSectionOpen && (
-            <View style={styles.chipsWrap}>
-              {GARMENT_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c.value}
-                  style={[styles.filterChip, styles.colorChip, colorFilters.includes(c.value) && styles.filterChipActive]}
-                  onPress={() => toggleColorFilter(c.value)}
-                >
-                  <View style={[styles.colorSwatch, { backgroundColor: c.hex }]} />
-                  <Text style={[styles.filterChipText, colorFilters.includes(c.value) && styles.filterChipTextActive]}>{c.value}</Text>
-                </TouchableOpacity>
-              ))}
+          {[
+            { label: 'Color principal', selected: colorFilters, toggle: toggleColorFilter, open: colorSectionOpen, setOpen: setColorSectionOpen },
+            { label: 'Color secundario', selected: secondaryColorFilters, toggle: toggleSecondaryColorFilter, open: secondaryColorSectionOpen, setOpen: setSecondaryColorSectionOpen },
+          ].map((section) => (
+            <View key={section.label}>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => section.setOpen((o) => !o)}
+              >
+                <Text style={[styles.filterSectionLabel, styles.collapsibleLabel]}>
+                  {section.label}{section.selected.length > 0 ? ` (${section.selected.length})` : ''}
+                </Text>
+                <Text style={styles.collapsibleChevron}>{section.open ? '⌃' : '⌄'}</Text>
+              </TouchableOpacity>
+              {section.open && (
+                <View style={styles.chipsWrap}>
+                  {GARMENT_COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.value}
+                      style={[styles.filterChip, styles.colorChip, section.selected.includes(c.value) && styles.filterChipActive]}
+                      onPress={() => section.toggle(c.value)}
+                    >
+                      <View style={[styles.colorSwatch, { backgroundColor: c.hex }]} />
+                      <Text style={[styles.filterChipText, section.selected.includes(c.value) && styles.filterChipTextActive]}>{c.value}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
-          )}
+          ))}
 
           {garmentStyles.length > 0 && (
             <>

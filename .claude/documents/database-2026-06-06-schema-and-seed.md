@@ -54,6 +54,9 @@ _Última actualización: 2026-09-14_
 | 20260914124906 | relax_prendas_color_check_allow_custom |
 | 20260914132038 | create_notificaciones_system |
 | 20260914140212 | create_prenda_imagenes_table |
+| 20261002121139 | brand_custom_colors_and_secondary_color |
+
+> **`brand_custom_colors_and_secondary_color` (2026-10-02):** tabla nueva `marca_colores` (paleta propia por marca) + color secundario en `prendas` (`color_id`, `color_secundario`, `color_secundario_id`) + vuelve a cerrar `prendas.color` a la paleta estándar. Ver `### marca_colores` y la nota "Color principal/secundario + colores propios" en `### prendas`. Aplicada vía Supabase MCP desde `opa-mobile` — **falta commitearla en `opa-backend/supabase/migrations/`** (mismo drift ya conocido).
 
 > **`prenda_imagenes` (2026-09-14) — tabla nueva, galería multi-imagen por prenda.** Antes cada prenda tenía como máximo 1 foto (`prendas.image_url`, `NOT NULL`); a pedido explícito del usuario ahora se pueden cargar hasta 5 (límite de producto, no de DB) al crear/editar. Ver sección `### prenda_imagenes` más abajo para el detalle completo (columnas, RLS, backfill, cómo se sincroniza con `prendas.image_url`). Aplicada directo vía Supabase MCP (`opa-backend` no clonado esta sesión) — mismo patrón de riesgo ya documentado para otras tablas de esta lista (drift con el repo hasta que una sesión futura la sincronice).
 
@@ -148,7 +151,10 @@ Los logos reales están en el bucket `avatars` (público). URL base:
 | price | numeric | |
 | image_url | text | **NOT NULL** — sigue siendo la "portada" (primera imagen) incluso ahora que existe galería multi-imagen (`prenda_imagenes`, 2026-09-14, ver sección propia más abajo) — todo lo que lee `image_url` (search, home, grillas, chips del outfit scroll) sigue funcionando sin cambios |
 | category | varchar | nullable — torso/piernas/calzado/extras |
-| color | varchar | nullable — **CHECK constraint `prendas_color_check`** (2026-09-14): paleta estandarizada de 17 valores, ver nota abajo. Antes era texto libre. |
+| color | varchar | nullable — color **principal** estándar. **CHECK `prendas_color_check`** (re-creado 2026-10-02): solo los 16 de la paleta estándar. Historial completo en las notas de abajo. |
+| color_id | uuid | nullable (2026-10-02) — color **principal** propio de la marca. FK compuesta `(color_id, brand_id)` → `marca_colores(id, brand_id)` `ON DELETE RESTRICT` (`prendas_color_custom_fk`) |
+| color_secundario | text | nullable (2026-10-02) — color **secundario** estándar, CHECK `prendas_color_secundario_check` (mismos 16) |
+| color_secundario_id | uuid | nullable (2026-10-02) — color **secundario** propio, FK `prendas_color_secundario_custom_fk` (misma forma que `color_id`) |
 | style | varchar | nullable |
 | available_sizes | text[] | nullable |
 | stock_por_talle | jsonb | nullable — `{"XS": 10, "S": 10, "M": 10, ...}` |
@@ -171,6 +177,8 @@ Los logos reales están en el bucket `avatars` (público). URL base:
 
 Paleta final de 16 vive en `constants/garmentColors.ts` (`GARMENT_COLORS`, con hex por color para el swatch — `GARMENT_COLOR_HEX`) — **ya no tiene que mantenerse sincronizada a mano con la DB** (a diferencia de la primera pasada): agregar o sacar un color de la constante no requiere tocar ningún constraint, porque el constraint ya no valida contra una lista. `app/brand/create-garment.tsx`: Color y Estilo pasaron a un componente `DropdownField` (hoja tipo `Modal`, mismo patrón que `SizeGuideSheet` en `app/product/[id].tsx`) — Color con swatch por fila + opción "Otro" (texto libre); Estilo con las mismas opciones dinámicas de antes (valores reales de `prendas.style`, sigue sin CHECK constraint ni estandarizar) + "Otro" también, ya que forzar un dropdown cerrado sobre un campo sin enum real haría imposible introducir un estilo nuevo. `app/(tabs)/search.tsx`: el filtro de Color muestra siempre los 16 colores de `GARMENT_COLORS` con swatch (no los valores reales de la tabla, a diferencia de Estilo que sigue con el patrón dinámico) — decisión explícita del usuario para que un color recién agregado a la paleta se pueda filtrar aunque ninguna prenda lo tenga todavía. Verificado con un PATCH real contra la DB (Capas, `Trench Camel`: Beige→Turquesa (vía "Otro")→Beige, revertido) — el valor custom pasa el guardrail liviano sin error; reabrir el editor con un color custom precarga correctamente en modo "Otro" con el texto ya escrito.
 
+**Color principal/secundario + colores propios de marca (2026-10-02, migración `brand_custom_colors_and_secondary_color`) — reemplaza el "Otro" de texto libre de la segunda pasada de arriba.** A pedido del usuario: (1) una prenda puede tener hasta 2 colores (el primero elegido es el principal, el segundo el secundario); (2) "Otro" ya no guarda texto libre sino que crea un **color propio de la marca** con nombre + hex (elegido con una rueda de color), que queda guardado en `marca_colores` para reusar. Modelo: cada posición (principal / secundario) es **o** un color estándar (texto en `color`/`color_secundario`) **o** uno propio (id en `color_id`/`color_secundario_id`), nunca las dos — CHECK `prendas_color_one_source`/`prendas_color_secundario_one_source`. CHECK `prendas_color_secundario_requires_primary`: no hay secundario sin principal. Como el texto libre ya no existe, se volvió a cerrar la lista: se borró `prendas_color_length_check` y se re-creó `prendas_color_check` (16 valores, igual que `GARMENT_COLORS`) + `prendas_color_secundario_check` — antes de aplicarlo se verificó que las 33 prendas reales ya usaban solo valores estándar (no hubo que migrar ningún "Otro"). **Si se agrega o saca un color de `constants/garmentColors.ts`, hay que actualizar estos dos CHECK.** Decisiones del usuario sobre editar/borrar un color propio: editarlo (nombre o hex) se refleja en todas las prendas que lo usan (porque se referencia por id); **borrarlo está bloqueado mientras alguna prenda lo use** — lo garantiza la propia DB con la FK `ON DELETE RESTRICT`, no solo la UI. La FK es compuesta con `brand_id` para que una prenda no pueda usar el color propio de **otra** marca. Escritura: las 4 columnas se escriben juntas directo a Supabase (policy `brand_owner_update_own_prendas`) desde `create-garment.tsx`, **no** por la API Hono — el PATCH de la API tiene whitelist y no conoce las columnas nuevas, y escribir `color` por la API y `color_id` aparte podía violar el CHECK de "una sola fuente" a mitad de camino.
+
 **`descontinuada` (2026-08-14):** reemplazo de un DELETE real, descartado porque las FK hacia `prendas` tienen `ON DELETE CASCADE` desde `outfit_items`, `prendas_armario` y `prendas_guardadas` — borrar una prenda hubiera hecho desaparecer silenciosamente ese ítem de cualquier outfit publicado (de la marca o de otro usuario) y de armarios/guardados ajenos; y `productos_orden`/`reseñas` tienen `ON DELETE NO ACTION`, así que el DELETE directamente fallaba si la prenda tenía alguna orden o reseña. En su lugar, la marca "descontinúa" la prenda: sigue existiendo (los outfits que ya la usan no se rompen), pero se oculta del catálogo público (`marca/[id].tsx`, `search.tsx`) y del carrusel "más de esta marca"; en `product/[id].tsx` el CTA de compra se reemplaza por "Ya no disponible" y aparece un banner. El toggle vive en `app/(tabs)/wardrobe.tsx` (`BrandCatalogView`, botón "Descontinuar"/"Reactivar" sobre cada card). **No hay borrado real todavía** — si una marca quiere borrar de verdad, tiene que pedirlo a soporte para que lo haga desde `opa-admin` (vía `service_role`, sin RLS de por medio).
 
 **RLS:** habilitado. Policies: `public_read_prendas` (SELECT, `true`) y `brand_owner_update_own_prendas` (UPDATE, 2026-08-14 — `brand_id in (select id from marcas where profile_id = auth.uid())`, mismo criterio en `USING`/`WITH CHECK`). **Sin policy de INSERT ni DELETE** — crear prendas pasa por `POST /api/brands/me/prendas` con `service_role` (bypassea RLS), no hay ningún camino para DELETE. La policy de UPDATE se agregó puntualmente para el toggle de `descontinuada` porque el `PATCH /api/brands/me/prendas/:id` de la API tiene una whitelist de campos que no incluye la columna nueva (no se pudo tocar `opa-backend` esta sesión, no está clonado) — como consecuencia, la policy es más permisiva de lo ideal: permite a la marca modificar *cualquier* columna de sus propias prendas directo por Supabase, no solo `descontinuada`, sin las validaciones de negocio que sí tiene la API (ej. `external_url` requerido si `sale_mode='redirect'`). Pendiente prolijo: cuando una sesión tenga `opa-backend` clonado, agregar `descontinuada` a la whitelist del PATCH y evaluar si angostar esta policy.
@@ -179,6 +187,22 @@ Paleta final de 16 vive en `constants/garmentColors.ts` (`GARMENT_COLORS`, con h
 
 **Convención de imágenes:** `prendas/{marca}/{prenda}_{marca}_{coleccion}.png`
 Ejemplo: `prendas/forma/remera_forma_verano25.png`
+
+---
+
+### `marca_colores` (2026-10-02)
+| Columna | Tipo | Notas |
+|---|---|---|
+| id | uuid | PK, default `gen_random_uuid()` |
+| brand_id | uuid | FK → marcas.id, `ON DELETE CASCADE`, NOT NULL |
+| name | text | NOT NULL, CHECK 1–30 caracteres (sin espacios de borde). Índice único `marca_colores_brand_name_uniq` sobre `(brand_id, lower(btrim(name)))` — una marca no puede tener dos colores con el mismo nombre |
+| hex | text | NOT NULL, CHECK `^#[0-9A-Fa-f]{6}$` (la app lo guarda en mayúsculas) |
+| sort_order | int | NOT NULL, default 0 — orden en el selector y en Gestionar |
+| created_at | timestamptz | default now() |
+
+`UNIQUE (id, brand_id)` existe solo para poder ser destino de la FK compuesta desde `prendas`. Paleta propia de cada marca: se crea desde "+ Otro" en la hoja de Color de Crear prenda o desde Gestionar (`app/brand/colors.tsx`). La app además rechaza (no la DB) un nombre igual a un color estándar.
+
+**RLS:** habilitado. `public_read_marca_colores` (SELECT, `true` — la página de la prenda necesita nombre/hex para cualquier visitante), `brand_owner_insert/update/delete_marca_colores` (ownership vía `brand_id in (select id from marcas where profile_id = auth.uid())`, mismo patrón que `brand_owner_update_own_prendas`). DELETE de un color en uso falla con `23503` por la FK `RESTRICT` de `prendas`.
 
 ---
 

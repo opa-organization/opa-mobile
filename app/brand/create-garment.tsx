@@ -1,20 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, Modal,
 } from 'react-native'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '../../constants/colors'
 import { fonts } from '../../constants/fonts'
 import { spacing } from '../../constants/spacing'
 import { radius } from '../../constants/radius'
-import { GARMENT_COLORS, GARMENT_COLOR_HEX } from '../../constants/garmentColors'
 import { GARMENT_CATEGORIES as CATEGORIES } from '../../constants/garmentCategories'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useMyBrand } from '../../hooks/useMyBrand'
+import { useBrandColors } from '../../hooks/useBrandColors'
+import { GarmentColorField, type ColorChoice } from '../../components/garment/GarmentColorField'
 import { useSizeGuidesForCategory } from '../../hooks/useSizeGuidesForCategory'
 import { uploadGarmentImage } from '../../lib/uploadImage'
 import { supabase } from '../../lib/supabase'
@@ -40,7 +41,31 @@ const NAME_MAX_LENGTH = 60
 const DESCRIPTION_MAX_LENGTH = 500
 const PRICE_MAX_LENGTH = 9 // hasta $999.999.999, ya filtrado a solo dígitos
 const URL_MAX_LENGTH = 300
-const CUSTOM_OPTION_MAX_LENGTH = 30 // "Otro" en los desplegables de Color/Estilo
+const CUSTOM_OPTION_MAX_LENGTH = 30 // "Otro" en el desplegable de Estilo
+
+// Convierte las 4 columnas de color de `prendas` en la lista ordenada que usa el
+// selector (índice 0 = principal, 1 = secundario), y al revés al guardar.
+function choicesFromRow(row: {
+  color: string | null; color_id: string | null
+  color_secundario: string | null; color_secundario_id: string | null
+}): ColorChoice[] {
+  const out: ColorChoice[] = []
+  if (row.color) out.push({ kind: 'standard', name: row.color })
+  else if (row.color_id) out.push({ kind: 'custom', id: row.color_id })
+  if (row.color_secundario) out.push({ kind: 'standard', name: row.color_secundario })
+  else if (row.color_secundario_id) out.push({ kind: 'custom', id: row.color_secundario_id })
+  return out
+}
+
+function columnsFromChoices(choices: ColorChoice[]) {
+  const [primary, secondary] = choices
+  return {
+    color: primary?.kind === 'standard' ? primary.name : null,
+    color_id: primary?.kind === 'custom' ? primary.id : null,
+    color_secundario: secondary?.kind === 'standard' ? secondary.name : null,
+    color_secundario_id: secondary?.kind === 'custom' ? secondary.id : null,
+  }
+}
 
 function sizeOptionsFor(category: string | null): string[] {
   return category === 'calzado' ? CALZADO_SIZES : STANDARD_SIZES
@@ -57,7 +82,7 @@ export default function CreateGarmentScreen() {
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [category, setCategory] = useState<string | null>(null)
-  const [color, setColor] = useState('')
+  const [colorChoices, setColorChoices] = useState<ColorChoice[]>([])
   const [style, setStyle] = useState('')
   const [sizeStock, setSizeStock] = useState<Record<string, string>>({})
   const [sizeGuideId, setSizeGuideId] = useState<string | null>(null)
@@ -70,6 +95,24 @@ export default function CreateGarmentScreen() {
   const [error, setError] = useState<string | null>(null)
 
   const { guides, loading: guidesLoading } = useSizeGuidesForCategory(category, brand?.id)
+
+  // Paleta propia de la marca. Se refresca al volver de "Gestionar"
+  // (app/brand/colors.tsx), donde se pueden renombrar/recolorear/borrar colores.
+  const { brandColors, loading: brandColorsLoading, refetch: refetchBrandColors, create: createBrandColor } = useBrandColors(brand?.id)
+  const hasFocusedOnce = useRef(false)
+  useFocusEffect(useCallback(() => {
+    if (hasFocusedOnce.current) refetchBrandColors()
+    hasFocusedOnce.current = true
+  }, [refetchBrandColors]))
+  // Si en Gestionar se borró un color que estaba elegido acá (todavía sin
+  // guardar, así que la DB no lo protegía), se saca de la selección.
+  useEffect(() => {
+    if (brandColorsLoading) return
+    setColorChoices((prev) => {
+      const next = prev.filter((c) => c.kind === 'standard' || brandColors.some((bc) => bc.id === c.id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [brandColors, brandColorsLoading])
 
   // Opciones del selector de Estilo: valores reales que ya existen en `prendas.style`
   // (no es un enum, sigue siendo texto libre) — mismo criterio que `outfitTags` en
@@ -108,7 +151,7 @@ export default function CreateGarmentScreen() {
         setDescription(data.description ?? '')
         setPrice(data.price != null ? String(Math.round(Number(data.price))) : '')
         setCategory(data.category ?? null)
-        setColor(data.color ?? '')
+        setColorChoices(choicesFromRow(data))
         setStyle(data.style ?? '')
         const stock: Record<string, string> = {}
         Object.entries((data.stock_por_talle as Record<string, number>) ?? {}).forEach(([size, qty]) => {
@@ -231,7 +274,6 @@ export default function CreateGarmentScreen() {
         category,
         style: style.trim() || null,
         image_url: imageUrl,
-        color: color.trim() || null,
         available_sizes: Object.keys(sizeStock),
         stock_por_talle: stockPorTalle,
         size_guide_id: sizeGuideId,
@@ -258,9 +300,20 @@ export default function CreateGarmentScreen() {
         targetId = created?.id
       }
 
+      if (!targetId) throw new Error('La prenda se guardó pero no se pudo terminar de configurar. Revisala desde tu catálogo.')
+
+      // Colores: las 4 columnas en un solo UPDATE directo a Supabase (RLS
+      // brand_owner_update_own_prendas), no por la API — ver nota en
+      // CreateGarmentPayload (lib/api.ts).
+      const { error: colorError } = await supabase
+        .from('prendas')
+        .update(columnsFromChoices(colorChoices))
+        .eq('id', targetId)
+      if (colorError) throw new Error('La prenda se guardó pero no se pudieron guardar los colores. Probá editarla de nuevo.')
+
       // Sincroniza la galería completa (`prenda_imagenes`): reemplazo total,
       // simple y suficiente dado el límite de 5 imágenes por prenda.
-      if (targetId) {
+      {
         await supabase.from('prenda_imagenes').delete().eq('garment_id', targetId)
         await supabase.from('prenda_imagenes').insert(
           finalUrls.map((url, i) => ({ garment_id: targetId, image_url: url, sort_order: i }))
@@ -376,16 +429,16 @@ export default function CreateGarmentScreen() {
             </View>
           </Section>
 
-          {/* Color — selector desplegable con la paleta estandarizada + "Otro" para
-              texto libre (color sigue siendo opcional). */}
+          {/* Color — hasta 2 (principal + secundario), estándar o propios de la
+              marca; "Otro" crea un color propio con rueda. Sigue siendo opcional. */}
           <Section title="COLOR">
-            <DropdownField
-              title="Color"
-              value={color}
-              options={GARMENT_COLORS.map((c) => c.value)}
-              swatches={GARMENT_COLOR_HEX}
-              onChange={setColor}
-              placeholder="Elegí un color"
+            <GarmentColorField
+              value={colorChoices}
+              onChange={setColorChoices}
+              brandName={brand?.name ?? 'tu marca'}
+              brandColors={brandColors}
+              onCreateColor={createBrandColor}
+              onManage={() => router.push('/brand/colors')}
             />
           </Section>
 
@@ -531,18 +584,17 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   )
 }
 
-// Campo desplegable: toca para abrir una hoja (mismo patrón de Modal que ya usa
-// SizeGuideSheet en app/product/[id].tsx) con la lista de `options`; si `swatches`
-// viene, cada fila muestra un circulito con ese color. Siempre ofrece "Otro" al
-// final para texto libre — el valor elegido puede no estar en `options` (ej. venía
-// de "Otro" en una edición anterior), en ese caso se muestra sin swatch.
+// Campo desplegable (hoy solo Estilo; Color tiene su propio GarmentColorField):
+// toca para abrir una hoja (mismo patrón de Modal que ya usa SizeGuideSheet en
+// app/product/[id].tsx) con la lista de `options`. Siempre ofrece "Otro" al final
+// para texto libre — el valor elegido puede no estar en `options` (ej. venía de
+// "Otro" en una edición anterior).
 function DropdownField({
-  title, value, options, swatches, onChange, placeholder = 'Elegí una opción',
+  title, value, options, onChange, placeholder = 'Elegí una opción',
 }: {
   title: string
   value: string
   options: string[]
-  swatches?: Record<string, string>
   onChange: (v: string) => void
   placeholder?: string
 }) {
@@ -571,9 +623,6 @@ function DropdownField({
     <>
       <TouchableOpacity style={styles.dropdownField} onPress={openPicker} activeOpacity={0.7}>
         <View style={styles.dropdownFieldValue}>
-          {swatches && value !== '' && (
-            <View style={[styles.colorSwatch, { backgroundColor: isCustom ? colors.grisBorde : swatches[value] }]} />
-          )}
           <Text style={[styles.dropdownFieldText, !value && styles.dropdownFieldPlaceholder]} numberOfLines={1}>
             {value || placeholder}
           </Text>
@@ -617,7 +666,6 @@ function DropdownField({
             <ScrollView style={styles.dropdownList}>
               {options.map((opt) => (
                 <TouchableOpacity key={opt} style={styles.dropdownRow} onPress={() => selectOption(opt)}>
-                  {swatches && <View style={[styles.colorSwatch, { backgroundColor: swatches[opt] }]} />}
                   <Text style={styles.dropdownRowText}>{opt}</Text>
                   {value === opt && <Text style={styles.dropdownRowCheck}>✓</Text>}
                 </TouchableOpacity>
@@ -720,7 +768,7 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: 15, fontWeight: '700', color: colors.blanco },
 
-  // DropdownField (Color/Estilo) — el "campo" en el form que abre la hoja
+  // DropdownField (Estilo) — el "campo" en el form que abre la hoja
   dropdownField: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.grisBorde, borderRadius: radius.chip,
@@ -730,7 +778,6 @@ const styles = StyleSheet.create({
   dropdownFieldText: { fontSize: 15, color: colors.negro },
   dropdownFieldPlaceholder: { color: colors.grisClaro },
   dropdownChevron: { fontSize: 16, color: colors.grisClaro },
-  colorSwatch: { width: 16, height: 16, borderRadius: 999, borderWidth: 1, borderColor: colors.grisMedio },
 
   // Hoja (Modal) — mismo patrón que SizeGuideSheet en app/product/[id].tsx
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },

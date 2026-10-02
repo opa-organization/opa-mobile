@@ -3,12 +3,13 @@
 // es solo para el circulito de swatch en el selector (`app/brand/create-garment.tsx`,
 // `app/(tabs)/search.tsx`) — no se guarda en la DB, ahí se guarda `value`.
 //
-// A pedido del usuario (2026-09-14) esto ya NO es una lista cerrada: el selector
-// de color también ofrece "Otro" con texto libre para casos que no entran acá, así
-// que el CHECK constraint de la DB (`prendas_color_length_check`, ver migración
-// `relax_prendas_color_check_allow_custom`) ya no exige que el valor esté en esta
-// lista — solo que no esté vacío ni sea desmesuradamente largo. Si se agrega o saca
-// un color de acá, no hace falta tocar la DB (a diferencia de antes).
+// Desde 2026-10-02 "Otro" ya no es texto libre: crea un color propio de la marca
+// (tabla `marca_colores`, con nombre + hex) que se referencia por id en
+// `prendas.color_id`/`color_secundario_id`. Por eso `prendas.color` y
+// `prendas.color_secundario` vuelven a ser una lista cerrada en la DB (CHECK
+// `prendas_color_check`/`prendas_color_secundario_check`, migración
+// `brand_custom_colors_and_secondary_color`). Si se agrega o saca un color de
+// acá, hay que actualizar también esos dos CHECK.
 export const GARMENT_COLORS: { value: string; hex: string }[] = [
   { value: 'Negro', hex: '#000000' },
   { value: 'Blanco', hex: '#FFFFFF' },
